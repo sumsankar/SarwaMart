@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { LinearGradient } from 'expo-linear-gradient';
 import { RootStackParams } from '../../navigation/RootNavigator';
-import { Header } from '../../components/ui/Header';
+import { Logo } from '../../components/ui/Logo';
 import { Button } from '../../components/ui/Button';
 import { T } from '../../constants/tokens';
 
@@ -27,10 +28,16 @@ export const ProductsScreen: React.FC<Props> = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <Header title="Products & Speciality" onBack={() => navigation.goBack()} />
+      <LinearGradient colors={[T.navy, '#2D5FA8']} style={styles.top}>
+        <Logo width={140} dark />
+      </LinearGradient>
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.body}>
-          <Text style={styles.step}>Step 2 of 2</Text>
+          <Text style={styles.title}>Products & Speciality</Text>
+          <Text style={styles.sub}>What do you trade in?</Text>
+          <View style={styles.stepRow}>
+            <Text style={styles.step}>Step 2 of 2</Text>
+          </View>
           <View style={styles.progress}><View style={[styles.bar, { width: '100%' }]} /></View>
           <Text style={styles.label}>Select product categories</Text>
           <View style={styles.chips}>
@@ -59,6 +66,9 @@ export const ProductsScreen: React.FC<Props> = ({ navigation }) => {
             disabled={selectedCat.length === 0}
             fullWidth style={styles.btn}
           />
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.center}>
+            <Text style={styles.link}>← Go back</Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -67,8 +77,12 @@ export const ProductsScreen: React.FC<Props> = ({ navigation }) => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: T.bg },
+  top: { height: 120, alignItems: 'center', justifyContent: 'center' },
   scroll: { flexGrow: 1 },
   body: { padding: 20, gap: 14 },
+  title: { fontSize: 24, fontWeight: '900', color: T.text1 },
+  sub: { fontSize: 16, color: T.text2 },
+  stepRow: { marginTop: 4 },
   step: { fontSize: 12, color: T.text3, fontWeight: '600' },
   progress: { height: 4, backgroundColor: T.hairline, borderRadius: 2 },
   bar: { height: 4, backgroundColor: T.amber, borderRadius: 2 },
@@ -81,4 +95,6 @@ const styles = StyleSheet.create({
   chipText: { fontSize: 13, fontWeight: '600', color: T.text2 },
   chipTextActive: { color: '#fff' },
   btn: { height: 52, borderRadius: 14, marginTop: 8 },
+  center: { alignItems: 'center' },
+  link: { color: T.navy, fontSize: 14, fontWeight: '600' },
 });

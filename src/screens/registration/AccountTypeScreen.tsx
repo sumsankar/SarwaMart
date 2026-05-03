@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { LinearGradient } from 'expo-linear-gradient';
 import { RootStackParams } from '../../navigation/RootNavigator';
-import { Header } from '../../components/ui/Header';
+import { Logo } from '../../components/ui/Logo';
 import { Button } from '../../components/ui/Button';
 import { T } from '../../constants/tokens';
 
@@ -19,10 +20,13 @@ export const AccountTypeScreen: React.FC<Props> = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <Header title="Create Account" onBack={() => navigation.goBack()} />
+      <LinearGradient colors={[T.navy, '#2D5FA8']} style={styles.top}>
+        <Logo width={140} dark />
+      </LinearGradient>
       <View style={styles.body}>
-        <Text style={styles.title}>Individual or Company?</Text>
-        <Text style={styles.sub}>Choose your account type</Text>
+        <Text style={styles.title}>Create Account</Text>
+        <Text style={styles.sub}>Individual or Company?</Text>
+        <Text style={styles.hint}>Choose your account type</Text>
         {options.map(o => (
           <TouchableOpacity key={o.key} onPress={() => setType(o.key)} style={[styles.card, type === o.key && styles.cardSelected]}>
             <Text style={styles.emoji}>{o.emoji}</Text>
@@ -36,6 +40,9 @@ export const AccountTypeScreen: React.FC<Props> = ({ navigation }) => {
           </TouchableOpacity>
         ))}
         <Button label="Continue" onPress={type ? () => navigation.navigate('PersonalDetails') : undefined} disabled={!type} fullWidth style={styles.btn} />
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.center}>
+          <Text style={styles.link}>← Go back</Text>
+        </TouchableOpacity>
       </View>
     </SafeAreaView>
   );
@@ -43,9 +50,11 @@ export const AccountTypeScreen: React.FC<Props> = ({ navigation }) => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: T.bg },
+  top: { height: 120, alignItems: 'center', justifyContent: 'center' },
   body: { flex: 1, padding: 24, gap: 14 },
-  title: { fontSize: 22, fontWeight: '900', color: T.text1 },
-  sub: { fontSize: 14, color: T.text2 },
+  title: { fontSize: 24, fontWeight: '900', color: T.text1 },
+  sub: { fontSize: 16, color: T.text2 },
+  hint: { fontSize: 13, color: T.text3 },
   card: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 18, backgroundColor: T.card, borderRadius: 14, borderWidth: 2, borderColor: T.hairline },
   cardSelected: { borderColor: T.navy, backgroundColor: `${T.navy}06` },
   emoji: { fontSize: 36 },
@@ -56,4 +65,6 @@ const styles = StyleSheet.create({
   radioFilled: { borderColor: T.navy },
   dot: { width: 10, height: 10, borderRadius: 5, backgroundColor: T.navy },
   btn: { height: 52, borderRadius: 14, marginTop: 8 },
+  center: { alignItems: 'center' },
+  link: { color: T.navy, fontSize: 14, fontWeight: '600' },
 });
