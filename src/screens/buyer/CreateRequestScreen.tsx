@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, SafeAreaView, KeyboardAvoidingView, Platform, Switch } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, KeyboardAvoidingView, Platform, Switch } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Header } from '../../components/ui/Header';
+import { AppBar } from '../../components/ui/AppBar';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { Icon } from '../../components/ui/Icon';
@@ -25,8 +26,9 @@ export const CreateRequestScreen: React.FC = () => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <Header title="Post a Request" onBack={() => nav.goBack()} />
+    <View style={styles.container}>
+      <AppBar />
+      <Header noSafeArea title="Post a Request" onBack={() => nav.goBack()} />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.scroll}>
 
@@ -153,7 +155,7 @@ export const CreateRequestScreen: React.FC = () => {
         />
       </View>
       <Toast message="📢 Request posted! Sellers will be notified." visible={toastVisible} />
-    </SafeAreaView>
+    </View>
   );
 };
 

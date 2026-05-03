@@ -1,11 +1,13 @@
 import React from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Header } from '../../components/ui/Header';
+import { AppBar } from '../../components/ui/AppBar';
 import { Card } from '../../components/ui/Card';
 import { Avatar } from '../../components/ui/Avatar';
 import { Icon } from '../../components/ui/Icon';
 import { T } from '../../constants/tokens';
+import { useAppStore } from '../../store/appStore';
 
 const STEPS = [
   { label: 'Deal confirmed',      done: true,  time: '12 Nov, 10:42 AM' },
@@ -23,10 +25,15 @@ const LINE_ITEMS = [
 
 export const InvoiceDetailScreen: React.FC = () => {
   const nav = useNavigation<any>();
+  const { role } = useAppStore();
+  // Counterparty is anonymized — sellers see a Buyer #, buyers see a Seller #.
+  const counterparty = role === 'seller' ? 'Buyer #4837' : 'Seller #2031';
+  const counterpartyLabel = role === 'seller' ? 'Verified Buyer' : 'Verified Seller';
 
   return (
-    <SafeAreaView style={styles.container}>
-      <Header
+    <View style={styles.container}>
+      <AppBar />
+      <Header noSafeArea
         title="INV-2025-00412"
         onBack={() => nav.goBack()}
         right={
@@ -46,13 +53,14 @@ export const InvoiceDetailScreen: React.FC = () => {
           </View>
         </View>
 
-        {/* Counterparty */}
+        {/* Counterparty — anonymized so neither side sees the other's real identity */}
         <Card>
           <View style={styles.partyInner}>
-            <Avatar name="Sri Venkatesh Traders" size={44} bg={T.amber} />
+            <Avatar name={counterparty} size={44} bg={T.amber} />
             <View style={{ flex: 1 }}>
-              <Text style={styles.partyName}>Sri Venkateswara Traders</Text>
+              <Text style={styles.partyName}>{counterparty}</Text>
               <View style={styles.partyMeta}>
+                <Text style={styles.partyVerified}>✓ {counterpartyLabel}</Text>
                 <Text style={styles.partyRating}>★ 4.8</Text>
                 <Text style={styles.partyDeals}>43 deals</Text>
               </View>
@@ -110,7 +118,7 @@ export const InvoiceDetailScreen: React.FC = () => {
           <Text style={styles.disputeText}>Raise a dispute</Text>
         </TouchableOpacity>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 
@@ -125,6 +133,7 @@ const styles = StyleSheet.create({
   partyInner: { padding: 14, flexDirection: 'row', gap: 12, alignItems: 'center' },
   partyName: { fontSize: 15, fontWeight: '700', color: T.text1 },
   partyMeta: { flexDirection: 'row', gap: 6, marginTop: 2 },
+  partyVerified: { fontSize: 11, color: T.green, fontWeight: '700' },
   partyRating: { fontSize: 12, color: T.amber },
   partyDeals: { fontSize: 12, color: T.text3 },
   contactBtn: { borderWidth: 1.5, borderColor: T.navy, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 },

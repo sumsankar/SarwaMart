@@ -1,26 +1,36 @@
 import React from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParams } from '../../navigation/RootNavigator';
 import { Header } from '../../components/ui/Header';
+import { AppBar } from '../../components/ui/AppBar';
 import { Card } from '../../components/ui/Card';
 import { Avatar } from '../../components/ui/Avatar';
 import { Icon } from '../../components/ui/Icon';
 import { Button } from '../../components/ui/Button';
 import { CountdownTimer } from '../../components/ui/CountdownTimer';
+import { StatusPill } from '../../components/ui/StatusPill';
 import { T } from '../../constants/tokens';
+import { getMyBidForItem } from '../../constants/mockData';
 import { useAppStore } from '../../store/appStore';
 
 type Nav = NativeStackNavigationProp<RootStackParams>;
 
 export const ItemDetailBuyerScreen: React.FC = () => {
   const nav = useNavigation<Nav>();
-  const { selectedItem: item } = useAppStore();
+  const { selectedItem: item, showToast } = useAppStore();
+  const myBid = item ? getMyBidForItem(item.id) : null;
+
+  const acceptBid = () => {
+    showToast(`Accepted at ${myBid?.price}. Invoice generated.`, 'success');
+    nav.navigate('InvoiceList');
+  };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <Header
+    <View style={styles.container}>
+      <AppBar />
+      <Header noSafeArea
         title=""
         onBack={() => nav.goBack()}
         right={
@@ -30,7 +40,7 @@ export const ItemDetailBuyerScreen: React.FC = () => {
           </View>
         }
       />
-      <ScrollView contentContainerStyle={{ paddingBottom: 100 }}>
+      <ScrollView contentContainerStyle={{ paddingBottom: myBid ? 24 : 100 }}>
         {/* Gallery */}
         <View style={styles.gallery}>
           <Text style={styles.galleryEmoji}>{item?.img || '🐟'}</Text>
@@ -56,6 +66,52 @@ export const ItemDetailBuyerScreen: React.FC = () => {
             <CountdownTimer seedSeconds={item ? item.id * 9341 + 2700 : 28800} compact />
           </View>
 
+          {/* Your bid */}
+          {myBid && (
+            <View style={styles.myBidCard}>
+              <View style={styles.myBidAccent} />
+              <View style={styles.myBidBody}>
+                <View style={styles.myBidHeader}>
+                  <Text style={styles.myBidLabel}>Your Latest Bid</Text>
+                  <StatusPill status={myBid.status} />
+                </View>
+                <View style={styles.myBidPriceRow}>
+                  <Text style={styles.myBidPrice}>{myBid.price}</Text>
+                  <View style={styles.myBidQtyChip}>
+                    <Icon name="package" size={12} color={T.amber} />
+                    <Text style={styles.myBidQtyText}>{myBid.qty}</Text>
+                  </View>
+                </View>
+                <View style={styles.myBidMetaRow}>
+                  <Icon name="clock" size={12} color={T.text3} />
+                  <Text style={styles.myBidMetaText}>Placed {myBid.placedAt}</Text>
+                </View>
+                {myBid.exchanges > 0 && (
+                  <View style={styles.myBidThreadRow}>
+                    <Icon name="msgCircle" size={12} color={T.navy} />
+                    <Text style={styles.myBidThreadText}>
+                      <Text style={styles.myBidThreadNum}>{myBid.exchanges}</Text> {myBid.exchanges === 1 ? 'message' : 'messages'} in thread
+                    </Text>
+                  </View>
+                )}
+                <View style={styles.myBidActions}>
+                  <TouchableOpacity onPress={() => nav.navigate('Negotiation')} style={styles.threadBtn} activeOpacity={0.85}>
+                    <Icon name="msgCircle" size={14} color={T.navy} />
+                    <Text style={styles.threadBtnText}>View Thread</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => nav.navigate('PlaceBid')} style={styles.updateBtn} activeOpacity={0.85}>
+                    <Icon name="edit" size={13} color="#fff" />
+                    <Text style={styles.updateBtnText}>Update Bid</Text>
+                  </TouchableOpacity>
+                </View>
+                <TouchableOpacity onPress={acceptBid} style={styles.acceptBtn} activeOpacity={0.85}>
+                  <Icon name="check" size={15} color="#fff" />
+                  <Text style={styles.acceptBtnText}>Accept at {myBid.price}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
           {/* Info grid */}
           <Card style={styles.infoCard}>
             <View style={styles.infoGrid}>
@@ -75,12 +131,12 @@ export const ItemDetailBuyerScreen: React.FC = () => {
             </View>
           </Card>
 
-          {/* Seller card */}
+          {/* Seller card — anonymized: buyer never sees seller's real identity */}
           <Card style={styles.sellerCard}>
             <View style={styles.sellerInner}>
-              <Avatar name={item?.name || 'Ravi Kumar'} size={44} bg={T.green} />
+              <Avatar name={`Seller ${item?.id ?? ''}`} size={44} bg={T.green} />
               <View style={{ flex: 1 }}>
-                <Text style={styles.sellerName}>Ravi Aqua Farms</Text>
+                <Text style={styles.sellerName}>Seller #{2030 + (item?.id ?? 0)}</Text>
                 <View style={styles.sellerMeta}>
                   <Text style={styles.sellerRating}>★ 4.8</Text>
                   <Text style={styles.sellerDeals}>43 deals</Text>
@@ -106,11 +162,13 @@ export const ItemDetailBuyerScreen: React.FC = () => {
         </View>
       </ScrollView>
 
-      {/* Sticky CTA */}
-      <View style={styles.cta}>
-        <Button label="Place a Bid" fullWidth onPress={() => nav.navigate('PlaceBid')} style={styles.ctaBtn} />
-      </View>
-    </SafeAreaView>
+      {/* Sticky CTA — only when no bid placed yet */}
+      {!myBid && (
+        <View style={styles.cta}>
+          <Button label="Place a Bid" fullWidth onPress={() => nav.navigate('PlaceBid')} style={styles.ctaBtn} />
+        </View>
+      )}
+    </View>
   );
 };
 
@@ -149,4 +207,27 @@ const styles = StyleSheet.create({
   locDelivery: { fontSize: 12, color: T.green },
   cta: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 16, backgroundColor: T.card, borderTopWidth: 1, borderTopColor: T.hairline },
   ctaBtn: { height: 52, borderRadius: 14 },
+
+  // Your Latest Bid card
+  myBidCard: { borderRadius: 14, backgroundColor: T.card, borderWidth: 1, borderColor: T.cardBorder, overflow: 'hidden' },
+  myBidAccent: { height: 3, backgroundColor: T.amber },
+  myBidBody: { padding: 14, gap: 8 },
+  myBidHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  myBidLabel: { fontSize: 11, fontWeight: '800', color: T.text3, textTransform: 'uppercase', letterSpacing: 0.5 },
+  myBidPriceRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  myBidPrice: { fontSize: 24, fontWeight: '900', color: T.amber, fontVariant: ['tabular-nums'] },
+  myBidQtyChip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 7, backgroundColor: `${T.amber}15` },
+  myBidQtyText: { fontSize: 12, fontWeight: '800', color: T.amber },
+  myBidMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  myBidMetaText: { fontSize: 12, color: T.text3 },
+  myBidThreadRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  myBidThreadText: { fontSize: 12, color: T.text2, fontWeight: '600' },
+  myBidThreadNum: { color: T.navy, fontWeight: '900' },
+  myBidActions: { flexDirection: 'row', gap: 10, marginTop: 4 },
+  threadBtn: { flex: 1, height: 40, borderRadius: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderWidth: 1.5, borderColor: T.navy, backgroundColor: `${T.navy}06` },
+  threadBtnText: { fontSize: 13, fontWeight: '800', color: T.navy },
+  updateBtn: { flex: 1, height: 40, borderRadius: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: T.amber },
+  updateBtnText: { fontSize: 13, fontWeight: '800', color: '#fff' },
+  acceptBtn: { height: 46, borderRadius: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: T.green, marginTop: 6, shadowColor: T.green, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 6, elevation: 3 },
+  acceptBtnText: { fontSize: 14, fontWeight: '800', color: '#fff' },
 });

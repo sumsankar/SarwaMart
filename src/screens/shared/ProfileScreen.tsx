@@ -1,7 +1,8 @@
 import React from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Header } from '../../components/ui/Header';
+import { AppBar } from '../../components/ui/AppBar';
 import { Avatar } from '../../components/ui/Avatar';
 import { Icon } from '../../components/ui/Icon';
 import { T } from '../../constants/tokens';
@@ -20,8 +21,9 @@ export const ProfileScreen: React.FC = () => {
   const nav = useNavigation<any>();
 
   return (
-    <SafeAreaView style={styles.container}>
-      <Header
+    <View style={styles.container}>
+      <AppBar />
+      <Header noSafeArea
         title="Profile"
         onBack={() => nav.goBack()}
         right={
@@ -78,7 +80,7 @@ export const ProfileScreen: React.FC = () => {
           </TouchableOpacity>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 

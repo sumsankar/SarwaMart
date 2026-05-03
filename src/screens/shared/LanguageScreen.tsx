@@ -1,7 +1,8 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Header } from '../../components/ui/Header';
+import { AppBar } from '../../components/ui/AppBar';
 import { Icon } from '../../components/ui/Icon';
 import { T } from '../../constants/tokens';
 import { useI18n } from '../../constants/i18n';
@@ -16,8 +17,9 @@ export const LanguageScreen: React.FC = () => {
   ];
 
   return (
-    <SafeAreaView style={styles.container}>
-      <Header title="Language" onBack={() => nav.goBack()} />
+    <View style={styles.container}>
+      <AppBar />
+      <Header noSafeArea title="Language" onBack={() => nav.goBack()} />
       <ScrollView contentContainerStyle={styles.scroll}>
         <Text style={styles.hint}>Choose your preferred language for the app.</Text>
         <View style={styles.list}>
@@ -43,7 +45,7 @@ export const LanguageScreen: React.FC = () => {
         </View>
         <Text style={styles.footer}>More languages coming soon.</Text>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 

@@ -31,6 +31,9 @@ import { MyItemsScreen } from '../screens/seller/MyItemsScreen';
 import { CreateItemScreen } from '../screens/seller/CreateItemScreen';
 import { ItemDetailSellerScreen } from '../screens/seller/ItemDetailSellerScreen';
 import { NegotiationScreen } from '../screens/seller/NegotiationScreen';
+import { BuyerRequestsListScreen } from '../screens/seller/BuyerRequestsListScreen';
+import { BuyerRequestDetailScreen } from '../screens/seller/BuyerRequestDetailScreen';
+import { MyProposalsScreen } from '../screens/seller/MyProposalsScreen';
 
 // Buyer
 import { BuyerHomeScreen } from '../screens/buyer/BuyerHomeScreen';
@@ -39,6 +42,8 @@ import { PlaceBidScreen } from '../screens/buyer/PlaceBidScreen';
 import { MyBidsScreen } from '../screens/buyer/MyBidsScreen';
 import { MyRequestsScreen } from '../screens/buyer/MyRequestsScreen';
 import { CreateRequestScreen } from '../screens/buyer/CreateRequestScreen';
+import { ItemsForBidListScreen } from '../screens/buyer/ItemsForBidListScreen';
+import { MyRequestDetailScreen } from '../screens/buyer/MyRequestDetailScreen';
 
 // Shared
 import { InvoiceListScreen } from '../screens/shared/InvoiceListScreen';
@@ -66,11 +71,15 @@ export type RootStackParams = {
   CreateItem: undefined;
   ItemDetailSeller: undefined;
   Negotiation: undefined;
+  BuyerRequestsList: undefined;
+  BuyerRequestDetail: undefined;
   ItemDetailBuyer: undefined;
   PlaceBid: undefined;
   MyBids: undefined;
   MyRequests: undefined;
   CreateRequest: undefined;
+  ItemsForBidList: undefined;
+  MyRequestDetail: undefined;
   InvoiceList: undefined;
   InvoiceDetail: undefined;
   Notifications: undefined;
@@ -91,14 +100,15 @@ const SellerTabNavigator = () => (
       tabBarInactiveTintColor: T.text3,
       tabBarLabelStyle: { fontSize: 10, fontWeight: '700' },
       tabBarIcon: ({ color, size }) => {
-        const icons: Record<string, string> = { Home: 'home', Items: 'package', Invoices: 'invoice' };
+        const icons: Record<string, string> = { Home: 'home', 'My Items': 'package', 'My Proposals': 'send', 'My Invoices': 'invoice' };
         return <Icon name={icons[route.name] || 'home'} size={22} color={color} />;
       },
     })}
   >
     <SellerTab.Screen name="Home" component={SellerHomeScreen} />
-    <SellerTab.Screen name="Items" component={MyItemsScreen} />
-    <SellerTab.Screen name="Invoices" component={InvoiceListScreen} />
+    <SellerTab.Screen name="My Items" component={MyItemsScreen} />
+    <SellerTab.Screen name="My Proposals" component={MyProposalsScreen} />
+    <SellerTab.Screen name="My Invoices" component={InvoiceListScreen} />
   </SellerTab.Navigator>
 );
 
@@ -111,14 +121,15 @@ const BuyerTabNavigator = () => (
       tabBarInactiveTintColor: T.text3,
       tabBarLabelStyle: { fontSize: 10, fontWeight: '700' },
       tabBarIcon: ({ color }) => {
-        const icons: Record<string, string> = { Home: 'home', 'My Bids': 'gavel', Invoices: 'invoice' };
+        const icons: Record<string, string> = { Home: 'home', 'My Bids': 'gavel', 'My Requests': 'edit', 'My Invoices': 'invoice' };
         return <Icon name={icons[route.name] || 'home'} size={22} color={color} />;
       },
     })}
   >
     <BuyerTab.Screen name="Home" component={BuyerHomeScreen} />
     <BuyerTab.Screen name="My Bids" component={MyBidsScreen} />
-    <BuyerTab.Screen name="Invoices" component={InvoiceListScreen} />
+    <BuyerTab.Screen name="My Requests" component={MyRequestsScreen} />
+    <BuyerTab.Screen name="My Invoices" component={InvoiceListScreen} />
   </BuyerTab.Navigator>
 );
 
@@ -143,11 +154,15 @@ export const RootNavigator = () => (
       <Stack.Screen name="CreateItem" component={CreateItemScreen} />
       <Stack.Screen name="ItemDetailSeller" component={ItemDetailSellerScreen} />
       <Stack.Screen name="Negotiation" component={NegotiationScreen} />
+      <Stack.Screen name="BuyerRequestsList" component={BuyerRequestsListScreen} />
+      <Stack.Screen name="BuyerRequestDetail" component={BuyerRequestDetailScreen} />
       <Stack.Screen name="ItemDetailBuyer" component={ItemDetailBuyerScreen} />
       <Stack.Screen name="PlaceBid" component={PlaceBidScreen} />
       <Stack.Screen name="MyBids" component={MyBidsScreen} />
       <Stack.Screen name="MyRequests" component={MyRequestsScreen} />
       <Stack.Screen name="CreateRequest" component={CreateRequestScreen} />
+      <Stack.Screen name="ItemsForBidList" component={ItemsForBidListScreen} />
+      <Stack.Screen name="MyRequestDetail" component={MyRequestDetailScreen} />
       <Stack.Screen name="InvoiceList" component={InvoiceListScreen} />
       <Stack.Screen name="InvoiceDetail" component={InvoiceDetailScreen} />
       <Stack.Screen name="Notifications" component={NotificationsScreen} />

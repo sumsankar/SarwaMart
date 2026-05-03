@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, SafeAreaView, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Header } from '../../components/ui/Header';
+import { AppBar } from '../../components/ui/AppBar';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Toast } from '../../components/ui/Toast';
@@ -30,8 +31,9 @@ export const PlaceBidScreen: React.FC = () => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <Header title="Place a Bid" onBack={() => nav.goBack()} />
+    <View style={styles.container}>
+      <AppBar />
+      <Header noSafeArea title="Place a Bid" onBack={() => nav.goBack()} />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.scroll}>
           {/* Item summary */}
@@ -157,7 +159,7 @@ export const PlaceBidScreen: React.FC = () => {
         />
       </View>
       <Toast message="🔨 Bid placed successfully!" visible={toastVisible} />
-    </SafeAreaView>
+    </View>
   );
 };
 

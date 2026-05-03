@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Header } from '../../components/ui/Header';
+import { AppBar } from '../../components/ui/AppBar';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { Icon } from '../../components/ui/Icon';
@@ -28,8 +29,9 @@ export const CreateItemScreen: React.FC = () => {
   );
 
   return (
-    <SafeAreaView style={styles.container}>
-      <Header title="New Bid Item" onBack={() => nav.goBack()} right={
+    <View style={styles.container}>
+      <AppBar />
+      <Header noSafeArea title="New Bid Item" onBack={() => nav.goBack()} right={
         <TouchableOpacity><Text style={styles.draftText}>Save Draft</Text></TouchableOpacity>
       } />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
@@ -102,7 +104,7 @@ export const CreateItemScreen: React.FC = () => {
         <Button label="Submit for Approval" onPress={handleSubmit} style={styles.submitBtn} />
       </View>
       <Toast message="✅ Sent for approval!" visible={toastVisible} />
-    </SafeAreaView>
+    </View>
   );
 };
 

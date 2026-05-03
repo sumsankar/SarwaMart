@@ -1,7 +1,8 @@
 import React from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Header } from '../../components/ui/Header';
+import { AppBar } from '../../components/ui/AppBar';
 import { Icon } from '../../components/ui/Icon';
 import { T } from '../../constants/tokens';
 
@@ -16,7 +17,7 @@ const GROUPS = [
   {
     label: 'Yesterday',
     items: [
-      { icon: 'msgCircle', title: 'Sri Venkatesh Traders countered', body: '₹248/kg — tap to view thread',        time: '3:22 PM', unread: false, color: T.navy },
+      { icon: 'msgCircle', title: 'Buyer #4837 countered',           body: '₹248/kg — tap to view thread',        time: '3:22 PM', unread: false, color: T.navy },
       { icon: 'receipt',   title: 'Invoice INV-2025-00412 settled',  body: '₹49,000 credited to your account',   time: '4:32 PM', unread: false, color: T.green },
     ],
   },
@@ -32,8 +33,9 @@ export const NotificationsScreen: React.FC = () => {
   const nav = useNavigation<any>();
 
   return (
-    <SafeAreaView style={styles.container}>
-      <Header
+    <View style={styles.container}>
+      <AppBar />
+      <Header noSafeArea
         title="Notifications"
         onBack={() => nav.goBack()}
         right={
@@ -62,7 +64,7 @@ export const NotificationsScreen: React.FC = () => {
           </View>
         ))}
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 

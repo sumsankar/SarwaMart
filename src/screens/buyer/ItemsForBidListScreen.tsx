@@ -1,12 +1,10 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, TextInput, RefreshControl } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParams } from '../../navigation/RootNavigator';
-import { Header } from '../../components/ui/Header';
 import { AppBar } from '../../components/ui/AppBar';
-import { SegTabs } from '../../components/ui/SegTabs';
-import { StatusPill } from '../../components/ui/StatusPill';
+import { Header } from '../../components/ui/Header';
 import { Icon } from '../../components/ui/Icon';
 import { CountdownTimer } from '../../components/ui/CountdownTimer';
 import { T } from '../../constants/tokens';
@@ -19,20 +17,23 @@ type Item = (typeof SELLER_ITEMS)[number];
 const PAGE_SIZE = 10;
 const LOAD_DELAY_MS = 600;
 
-export const MyItemsScreen: React.FC = () => {
+export const ItemsForBidListScreen: React.FC = () => {
   const nav = useNavigation<Nav>();
   const { setSelectedItem } = useAppStore();
-  const [seg, setSeg] = useState('All');
+  const [search, setSearch] = useState('');
   const [items, setItems] = useState<Item[]>([]);
   const [loadingMore, setLoadingMore] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
-  const all = seg === 'All' ? SELLER_ITEMS : SELLER_ITEMS.filter(i => i.status.toLowerCase() === seg.toLowerCase());
+  const q = search.trim().toLowerCase();
+  const all = SELLER_ITEMS
+    .filter(i => i.status === 'live')
+    .filter(i => !q || i.name.toLowerCase().includes(q) || i.sub.toLowerCase().includes(q) || i.region.toLowerCase().includes(q));
   const hasMore = items.length < all.length;
 
   useEffect(() => {
     setItems(all.slice(0, PAGE_SIZE));
-  }, [seg]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [q]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadMore = useCallback(() => {
     if (loadingMore || !hasMore) return;
@@ -51,80 +52,83 @@ export const MyItemsScreen: React.FC = () => {
     }, LOAD_DELAY_MS);
   }, [all]);
 
-  const renderItem = useCallback(({ item }: { item: Item }) => {
-    const isLive = item.status.toLowerCase() === 'live';
-    return (
-      <TouchableOpacity
-        onPress={() => { setSelectedItem(item); nav.navigate('ItemDetailSeller'); }}
-        style={styles.card}
-        activeOpacity={0.85}
-      >
-        <View style={styles.cardAccent} />
-        <View style={styles.cardBody}>
-          <View style={styles.topRow}>
-            <View style={styles.imgBox}>
-              <Text style={styles.emoji}>{item.img}</Text>
-            </View>
-            <View style={styles.topInfo}>
-              <View style={styles.nameRow}>
-                <Text style={styles.name} numberOfLines={1}>{item.name}</Text>
-                <StatusPill status={item.status} />
-              </View>
-              <Text style={styles.sub}>{item.sub} · {item.qty}</Text>
-              <View style={styles.locRow}>
-                <Icon name="mapPin" size={12} color={T.text3} />
-                <Text style={styles.locText} numberOfLines={1}>{item.region}</Text>
-              </View>
+  const renderItem = useCallback(({ item }: { item: Item }) => (
+    <TouchableOpacity
+      onPress={() => { setSelectedItem(item); nav.navigate('ItemDetailBuyer'); }}
+      style={styles.card}
+      activeOpacity={0.85}
+    >
+      <View style={styles.accent} />
+      <View style={styles.cardBody}>
+        <View style={styles.topRow}>
+          <View style={styles.imgBox}>
+            <Text style={styles.emoji}>{item.img}</Text>
+          </View>
+          <View style={styles.topInfo}>
+            <Text style={styles.name} numberOfLines={1}>{item.name}</Text>
+            <Text style={styles.sub}>{item.sub} · {item.qty}</Text>
+            <View style={styles.locRow}>
+              <Icon name="mapPin" size={12} color={T.text3} />
+              <Text style={styles.locText} numberOfLines={1}>{item.region}</Text>
             </View>
           </View>
-
-          <View style={styles.priceRow}>
-            <Text style={styles.price}>{item.price}</Text>
-            {isLive && <CountdownTimer seedSeconds={item.id * 7823 + 3601} compact />}
-          </View>
-
-          <View style={styles.tagsRow}>
-            <View style={styles.tag}>
-              <Icon name="shield" size={10} color={T.navy} />
-              <Text style={styles.tagText}>Grade {item.grade}</Text>
+          {item.bids > 0 && (
+            <View style={styles.bidsBadge}>
+              <Icon name="gavel" size={11} color="#fff" />
+              <Text style={styles.bidsBadgeText}>{item.bids}</Text>
             </View>
-            <View style={styles.tag}>
-              <Text style={styles.tagText}>{item.freshness}</Text>
-            </View>
+          )}
+        </View>
+
+        <View style={styles.priceRow}>
+          <Text style={styles.price}>{item.price}</Text>
+          <CountdownTimer seedSeconds={item.id * 9341 + 2700} compact />
+        </View>
+
+        <View style={styles.tagsRow}>
+          <View style={styles.tag}>
+            <Icon name="shield" size={10} color={T.navy} />
+            <Text style={styles.tagText}>Grade {item.grade}</Text>
           </View>
-
-          <View style={styles.divider} />
-
-          <View style={styles.footer}>
-            {item.bids > 0 ? (
-              <View style={styles.bidsWrap}>
-                <Icon name="gavel" size={13} color={T.amber} />
-                <Text style={styles.bidsText}>
-                  <Text style={styles.bidsNum}>{item.bids}</Text>{' '}
-                  {item.bids === 1 ? 'bid received' : 'bids received'}
-                </Text>
-              </View>
-            ) : (
-              <Text style={styles.noBidsText}>No bids yet</Text>
-            )}
-            <Icon name="chevronR" size={16} color={T.text3} />
+          <View style={styles.tag}>
+            <Text style={styles.tagText}>{item.freshness}</Text>
           </View>
         </View>
-      </TouchableOpacity>
-    );
-  }, [nav, setSelectedItem]);
+
+        <View style={styles.divider} />
+
+        <TouchableOpacity onPress={() => { setSelectedItem(item); nav.navigate('PlaceBid'); }} style={styles.bidBtn} activeOpacity={0.85}>
+          <Icon name="gavel" size={14} color="#fff" />
+          <Text style={styles.bidBtnText}>Place a Bid</Text>
+        </TouchableOpacity>
+      </View>
+    </TouchableOpacity>
+  ), [nav, setSelectedItem]);
 
   return (
     <View style={styles.container}>
       <AppBar />
-      <Header noSafeArea title="My Items" onBack={() => nav.goBack()}
-        right={
-          <TouchableOpacity onPress={() => nav.navigate('CreateItem')} style={styles.addBtn}>
-            <Icon name="plus" size={18} color="#fff" />
-          </TouchableOpacity>
-        }
-      />
-      <SegTabs tabs={['All', 'Live', 'Pending', 'Sold', 'Expired']} active={seg} onSelect={setSeg} />
+      <Header noSafeArea title="Items for Bid" onBack={() => nav.goBack()} />
+
+      <View style={styles.searchRow}>
+        <View style={styles.searchBox}>
+          <Icon name="search" size={16} color={T.text3} />
+          <TextInput
+            value={search}
+            onChangeText={setSearch}
+            placeholder="Search products, sellers, regions…"
+            placeholderTextColor={T.text3}
+            style={styles.searchInput}
+            returnKeyType="search"
+            autoCorrect={false}
+          />
+          {search.length > 0 && (
+            <TouchableOpacity onPress={() => setSearch('')} hitSlop={8}>
+              <Text style={styles.clearText}>✕</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
 
       <Text style={styles.countText}>
         Showing {items.length} of {all.length} {all.length === 1 ? 'item' : 'items'}
@@ -134,17 +138,17 @@ export const MyItemsScreen: React.FC = () => {
         data={items}
         keyExtractor={i => String(i.id)}
         renderItem={renderItem}
-        contentContainerStyle={styles.list}
+        contentContainerStyle={styles.listContent}
         onEndReached={loadMore}
         onEndReachedThreshold={0.4}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={T.navy} />}
         ListEmptyComponent={
           <View style={styles.empty}>
             <View style={styles.emptyIconWrap}>
-              <Icon name="package" size={26} color={T.navy} />
+              <Icon name="search" size={26} color={T.navy} />
             </View>
-            <Text style={styles.emptyTitle}>No {seg.toLowerCase() === 'all' ? '' : `${seg.toLowerCase()} `}items yet</Text>
-            <Text style={styles.emptySub}>Tap the + button to list your first catch.</Text>
+            <Text style={styles.emptyTitle}>{q ? `No items match “${search}”` : 'No live items right now'}</Text>
+            <Text style={styles.emptySub}>{q ? 'Try a broader search.' : 'New items go live throughout the day — check back soon.'}</Text>
           </View>
         }
         ListFooterComponent={
@@ -160,32 +164,32 @@ export const MyItemsScreen: React.FC = () => {
           ) : null
         }
       />
-
-      <TouchableOpacity onPress={() => nav.navigate('CreateItem')} style={styles.fab}>
-        <Icon name="plus" size={26} color="#fff" />
-      </TouchableOpacity>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: T.bg },
+  searchRow: { paddingHorizontal: 16, paddingTop: 12 },
+  searchBox: { height: 44, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: T.card, borderRadius: 10, paddingHorizontal: 14, borderWidth: 1, borderColor: T.hairline },
+  searchInput: { flex: 1, fontSize: 14, color: T.text1, paddingVertical: 0 },
+  clearText: { color: T.text3, fontSize: 14, paddingHorizontal: 4 },
   countText: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 4, fontSize: 12, color: T.text3, fontWeight: '600' },
-  list: { padding: 16, paddingTop: 8, gap: 12 },
+  listContent: { padding: 16, paddingTop: 8, gap: 12 },
 
   card: { borderRadius: 14, backgroundColor: T.card, borderWidth: 1, borderColor: T.cardBorder, overflow: 'hidden' },
-  cardAccent: { height: 3, backgroundColor: T.navy },
+  accent: { height: 3, backgroundColor: T.navy },
   cardBody: { padding: 14, gap: 10 },
-
-  topRow: { flexDirection: 'row', gap: 12 },
+  topRow: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
   imgBox: { width: 72, height: 72, borderRadius: 12, backgroundColor: `${T.navy}10`, alignItems: 'center', justifyContent: 'center' },
   emoji: { fontSize: 40 },
   topInfo: { flex: 1, gap: 3, justifyContent: 'center' },
-  nameRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
-  name: { fontSize: 16, fontWeight: '800', color: T.text1, flex: 1 },
+  name: { fontSize: 16, fontWeight: '800', color: T.text1 },
   sub: { fontSize: 12, color: T.text2, fontWeight: '600' },
   locRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 1 },
   locText: { fontSize: 11, color: T.text3, flexShrink: 1 },
+  bidsBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, backgroundColor: T.amber },
+  bidsBadgeText: { color: '#fff', fontSize: 11, fontWeight: '800' },
 
   priceRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   price: { fontSize: 20, fontWeight: '900', color: T.navy, fontVariant: ['tabular-nums'] },
@@ -195,15 +199,8 @@ const styles = StyleSheet.create({
   tagText: { fontSize: 11, fontWeight: '700', color: T.navy },
 
   divider: { height: 1, backgroundColor: T.hairline },
-
-  footer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  bidsWrap: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  bidsText: { fontSize: 12, color: T.text2, fontWeight: '600' },
-  bidsNum: { color: T.amber, fontWeight: '900' },
-  noBidsText: { fontSize: 12, color: T.text3, fontStyle: 'italic' },
-
-  addBtn: { width: 36, height: 36, borderRadius: 8, backgroundColor: T.amber, alignItems: 'center', justifyContent: 'center' },
-  fab: { position: 'absolute', bottom: 24, right: 20, width: 56, height: 56, borderRadius: 28, backgroundColor: T.amber, alignItems: 'center', justifyContent: 'center', shadowColor: T.amber, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.4, shadowRadius: 10, elevation: 6 },
+  bidBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 42, borderRadius: 10, backgroundColor: T.amber },
+  bidBtnText: { color: '#fff', fontSize: 14, fontWeight: '800' },
 
   footerLoading: { paddingVertical: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
   footerText: { fontSize: 13, color: T.text3 },

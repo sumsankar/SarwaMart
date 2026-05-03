@@ -1,18 +1,21 @@
 import React, { useState, useRef } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, SafeAreaView, Modal, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Modal, KeyboardAvoidingView, Platform } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Header } from '../../components/ui/Header';
+import { AppBar } from '../../components/ui/AppBar';
 import { StatusPill } from '../../components/ui/StatusPill';
 import { Button } from '../../components/ui/Button';
 import { Icon } from '../../components/ui/Icon';
 import { T } from '../../constants/tokens';
 import { NEGOTIATION_THREAD } from '../../constants/mockData';
+import { useAppStore } from '../../store/appStore';
 
 type Message = typeof NEGOTIATION_THREAD[number];
 
 export const NegotiationScreen: React.FC = () => {
   const nav = useNavigation<any>();
   const scrollRef = useRef<ScrollView>(null);
+  const { role, selectedItem, selectedRequest } = useAppStore();
   const [msg, setMsg] = useState('');
   const [messages, setMessages] = useState<Message[]>(NEGOTIATION_THREAD as any);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -25,20 +28,35 @@ export const NegotiationScreen: React.FC = () => {
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
   };
 
+  // Counterparty is anonymized — sellers see a Buyer #, buyers see a Seller #.
+  const counterparty = (() => {
+    if (role === 'seller') {
+      if (selectedRequest?.buyer) return selectedRequest.buyer as string;
+      const seed = selectedItem?.id ?? selectedRequest?.id ?? 1;
+      return `Buyer #${4800 + seed * 17 % 3200}`;
+    }
+    const seed = selectedItem?.id ?? selectedRequest?.id ?? 1;
+    return `Seller #${2030 + seed}`;
+  })();
+  const counterpartyLabel = role === 'seller' ? 'Verified Buyer' : 'Verified Seller';
+  const itemTitle = selectedItem ? `${selectedItem.name} · ${selectedItem.qty}` : selectedRequest ? `${selectedRequest.product} · ${selectedRequest.qty}` : 'Fresh Rohu · 200 kg';
+  const itemEmoji = selectedItem?.img || '🐟';
+
   return (
-    <SafeAreaView style={styles.container}>
-      <Header title="Sri Venkatesh Traders" onBack={() => nav.goBack()} right={<StatusPill status="negotiating" />} />
+    <View style={styles.container}>
+      <AppBar />
+      <Header noSafeArea title={counterparty} onBack={() => nav.goBack()} right={<StatusPill status="negotiating" />} />
 
       {/* Pinned deal summary */}
       <View style={styles.pinnedCard}>
-        <Text style={styles.pinnedEmoji}>🐟</Text>
+        <Text style={styles.pinnedEmoji}>{itemEmoji}</Text>
         <View style={styles.pinnedInfo}>
-          <Text style={styles.pinnedTitle}>Fresh Rohu · 200 kg</Text>
+          <Text style={styles.pinnedTitle}>{itemTitle}</Text>
           <Text style={styles.pinnedAmount}>₹49,000</Text>
           <Text style={styles.pinnedSub}>₹245/kg · 200 kg</Text>
         </View>
         <View style={styles.pinnedBuyer}>
-          <Text style={styles.pinnedBuyerLabel}>Verified Buyer</Text>
+          <Text style={styles.pinnedBuyerLabel}>{counterpartyLabel}</Text>
           <Text style={styles.pinnedRating}>★ 4.8 · 43 deals</Text>
         </View>
       </View>
@@ -135,7 +153,7 @@ export const NegotiationScreen: React.FC = () => {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 };
 
