@@ -1,0 +1,31 @@
+export const T = {
+  navy:    '#1B3770',
+  green:   '#2D7A35',
+  amber:   '#E8921A',
+  ctaDark: '#C4780F',
+  success: '#2D7A35',
+  warning: '#BA7517',
+  danger:  '#A32D2D',
+  info:    '#1B5E9C',
+  bg:      '#F5F7FA',
+  card:    '#FFFFFF',
+  cardBorder: '#E8EAF0',
+  text1:   '#1A1C2E',
+  text2:   '#5A5E7A',
+  text3:   '#8A8FA8',
+  hairline: '#E2E5EF',
+  overlay: 'rgba(26,28,46,0.55)',
+} as const;
+
+export const STATUS_PILL = {
+  live:         { bg: '#E6F4EC', text: '#2D7A35', dot: '#2D7A35' },
+  pending:      { bg: '#FFF3E0', text: '#BA7517', dot: '#E8921A' },
+  sold:         { bg: '#EDEDF4', text: '#5A5E7A', dot: '#8A8FA8' },
+  expired:      { bg: '#FDECEA', text: '#A32D2D', dot: '#A32D2D' },
+  negotiating:  { bg: '#E8F0FE', text: '#1B5E9C', dot: '#1B5E9C' },
+  approved:     { bg: '#E6F4EC', text: '#2D7A35', dot: '#2D7A35' },
+  rejected:     { bg: '#FDECEA', text: '#A32D2D', dot: '#A32D2D' },
+  'under review': { bg: '#FFF3E0', text: '#BA7517', dot: '#E8921A' },
+  settled:      { bg: '#E6F4EC', text: '#2D7A35', dot: '#2D7A35' },
+  'payment pending': { bg: '#FFF3E0', text: '#BA7517', dot: '#E8921A' },
+} as const;
