@@ -28,9 +28,9 @@ export const ProductsScreen: React.FC<Props> = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.top}>
+      <LinearGradient colors={[T.navy, '#2D5FA8']} style={styles.top}>
         <Logo width={140} dark />
-      </View>
+      </LinearGradient>
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.body}>
           <Text style={styles.title}>Products & Speciality</Text>
@@ -77,7 +77,7 @@ export const ProductsScreen: React.FC<Props> = ({ navigation }) => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: T.bg },
-  top: { height: 120, alignItems: 'center', justifyContent: 'center', backgroundColor: T.card, borderBottomWidth: 1, borderBottomColor: T.hairline },
+  top: { height: 120, alignItems: 'center', justifyContent: 'center' },
   scroll: { flexGrow: 1 },
   body: { padding: 20, gap: 14 },
   title: { fontSize: 24, fontWeight: '900', color: T.text1 },

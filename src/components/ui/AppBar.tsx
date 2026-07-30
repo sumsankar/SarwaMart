@@ -24,16 +24,16 @@ export const AppBar: React.FC = () => {
       <SafeAreaView edges={['top']} style={styles.safe}>
         <View style={styles.bar}>
           <TouchableOpacity onPress={() => setDrawerOpen(true)} hitSlop={8}>
-            <Icon name="menu" size={22} color={T.navy} />
+            <Icon name="menu" size={22} color="#fff" />
           </TouchableOpacity>
           <Logo width={110} dark />
           <View style={styles.right}>
             <TouchableOpacity onPress={() => nav.navigate('Notifications')} style={styles.bellWrap} hitSlop={8}>
-              <Icon name="bell" size={22} color={T.navy} />
+              <Icon name="bell" size={22} color="#fff" />
               <View style={styles.notifDot} />
             </TouchableOpacity>
             <TouchableOpacity onPress={() => nav.navigate('Profile')} hitSlop={4}>
-              <Avatar name={userName} size={32} bg={`${T.navy}12`} />
+              <Avatar name={userName} size={32} bg="rgba(255,255,255,0.2)" />
             </TouchableOpacity>
           </View>
         </View>
@@ -44,9 +44,9 @@ export const AppBar: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-  safe: { backgroundColor: T.card, borderBottomWidth: 1, borderBottomColor: T.hairline },
+  safe: { backgroundColor: T.navy },
   bar: { height: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16 },
   right: { flexDirection: 'row', gap: 12, alignItems: 'center' },
   bellWrap: { position: 'relative' },
-  notifDot: { position: 'absolute', top: -2, right: -2, width: 8, height: 8, borderRadius: 4, backgroundColor: T.amber, borderWidth: 1.5, borderColor: T.card },
+  notifDot: { position: 'absolute', top: -2, right: -2, width: 8, height: 8, borderRadius: 4, backgroundColor: T.amber, borderWidth: 1.5, borderColor: T.navy },
 });

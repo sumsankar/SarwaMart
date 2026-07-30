@@ -70,7 +70,7 @@ export const PublicLandingScreen: React.FC<Props> = ({ navigation }) => {
     <View style={styles.container}>
       <SafeAreaView edges={['top']} style={{ backgroundColor: T.card, borderBottomWidth: 1, borderBottomColor: T.hairline }}>
         <View style={styles.header}>
-          <Logo width={120} dark />
+          <Logo width={120} />
           <View style={styles.headerBtns}>
             <TouchableOpacity onPress={() => navigation.navigate('Login')} style={styles.loginChip}>
               <Text style={styles.loginChipText}>Log In</Text>
@@ -82,52 +82,52 @@ export const PublicLandingScreen: React.FC<Props> = ({ navigation }) => {
         </View>
       </SafeAreaView>
 
-      {/* Pinned region — banner + stats + search + chips stay visible while sections scroll */}
-      <View style={styles.pinned}>
-        <BannerCarousel banners={PUBLIC_BANNERS} />
-
-        {/* Stats */}
-        <View style={styles.stats}>
-          {[{ v: '12,000+', l: 'Verified Farmers' }, { v: '8,500+', l: 'Active Buyers' }, { v: '₹42Cr+', l: 'Traded Monthly' }].map((s, i) => (
-            <View key={s.l} style={[styles.stat, i < 2 && styles.statBorder]}>
-              <Text style={styles.statVal}>{s.v}</Text>
-              <Text style={styles.statLabel}>{s.l}</Text>
-            </View>
-          ))}
-        </View>
-
-        {/* Search */}
-        <View style={styles.searchRow}>
-          <View style={styles.searchBox}>
-            <Icon name="search" size={16} color={T.text3} />
-            <TextInput
-              value={search}
-              onChangeText={setSearch}
-              placeholder="Search fish, prawn, region…"
-              placeholderTextColor={T.text3}
-              style={styles.searchInput}
-              returnKeyType="search"
-              autoCorrect={false}
-            />
-            {search.length > 0 && (
-              <TouchableOpacity onPress={() => setSearch('')} hitSlop={8}>
-                <Text style={styles.clearText}>✕</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        </View>
-
-        {/* Category chips */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-          {[{ l: 'All', e: '🌊' }, { l: 'Fish', e: '🐟' }, { l: 'Prawn', e: '🦐' }, { l: 'Crab', e: '🦀' }, { l: 'Lobster', e: '🦞' }, { l: 'Squid', e: '🦑' }].map((c, i) => (
-            <View key={c.l} style={[styles.chip, i === 0 && styles.chipActive]}>
-              <Text style={[styles.chipText, i === 0 && styles.chipTextActive]}>{c.e} {c.l}</Text>
-            </View>
-          ))}
-        </ScrollView>
-      </View>
-
       <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        {/* Top region — banner + stats + search + chips scroll with vertical content */}
+        <View style={styles.pinned}>
+          <BannerCarousel banners={PUBLIC_BANNERS} />
+
+          {/* Stats */}
+          <View style={styles.stats}>
+            {[{ v: '12,000+', l: 'Verified Farmers' }, { v: '8,500+', l: 'Active Buyers' }, { v: '₹42Cr+', l: 'Traded Monthly' }].map((s, i) => (
+              <View key={s.l} style={[styles.stat, i < 2 && styles.statBorder]}>
+                <Text style={styles.statVal}>{s.v}</Text>
+                <Text style={styles.statLabel}>{s.l}</Text>
+              </View>
+            ))}
+          </View>
+
+          {/* Search */}
+          <View style={styles.searchRow}>
+            <View style={styles.searchBox}>
+              <Icon name="search" size={16} color={T.text3} />
+              <TextInput
+                value={search}
+                onChangeText={setSearch}
+                placeholder="Search fish, prawn, region…"
+                placeholderTextColor={T.text3}
+                style={styles.searchInput}
+                returnKeyType="search"
+                autoCorrect={false}
+              />
+              {search.length > 0 && (
+                <TouchableOpacity onPress={() => setSearch('')} hitSlop={8}>
+                  <Text style={styles.clearText}>✕</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+
+          {/* Category chips */}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
+            {[{ l: 'All', e: '🌊' }, { l: 'Fish', e: '🐟' }, { l: 'Prawn', e: '🦐' }, { l: 'Crab', e: '🦀' }, { l: 'Lobster', e: '🦞' }, { l: 'Squid', e: '🦑' }].map((c, i) => (
+              <View key={c.l} style={[styles.chip, i === 0 && styles.chipActive]}>
+                <Text style={[styles.chipText, i === 0 && styles.chipTextActive]}>{c.e} {c.l}</Text>
+              </View>
+            ))}
+          </ScrollView>
+        </View>
+
         {/* Items for Bid — navy theme */}
         <SectionHeader
           title="Items for Bid"
