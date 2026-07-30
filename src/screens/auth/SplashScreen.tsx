@@ -22,17 +22,17 @@ export const SplashScreen: React.FC<Props> = ({ navigation }) => {
   }, []);
 
   return (
-    <LinearGradient colors={[T.navy, '#0E2554']} style={styles.container}>
+    <View style={styles.container}>
       <Animated.View style={[styles.content, { opacity, transform: [{ scale }] }]}>
         <Logo width={200} dark />
         <Text style={styles.tagline}>Fresh From The Source</Text>
       </Animated.View>
-    </LinearGradient>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  container: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: T.card },
   content: { alignItems: 'center', gap: 24 },
-  tagline: { fontSize: 13, color: 'rgba(255,255,255,0.5)', letterSpacing: 2.5, textTransform: 'uppercase' },
+  tagline: { fontSize: 13, color: T.text2, letterSpacing: 2.5, textTransform: 'uppercase', fontWeight: '600' },
 });

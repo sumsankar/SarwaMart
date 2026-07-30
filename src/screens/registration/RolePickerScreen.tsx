@@ -22,9 +22,9 @@ export const RolePickerScreen: React.FC<Props> = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <LinearGradient colors={[T.navy, '#2D5FA8']} style={styles.top}>
+      <View style={styles.top}>
         <Logo width={140} dark />
-      </LinearGradient>
+      </View>
       <View style={styles.body}>
         <Text style={styles.title}>Create Account</Text>
         <Text style={styles.sub}>How will you use SarwaMart?</Text>
@@ -58,7 +58,7 @@ export const RolePickerScreen: React.FC<Props> = ({ navigation }) => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: T.bg },
-  top: { height: 120, alignItems: 'center', justifyContent: 'center' },
+  top: { height: 120, alignItems: 'center', justifyContent: 'center', backgroundColor: T.card, borderBottomWidth: 1, borderBottomColor: T.hairline },
   body: { flex: 1, padding: 24, gap: 14 },
   title: { fontSize: 24, fontWeight: '900', color: T.text1 },
   sub: { fontSize: 16, color: T.text2 },

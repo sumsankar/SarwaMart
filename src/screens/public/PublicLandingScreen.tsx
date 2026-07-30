@@ -68,7 +68,7 @@ export const PublicLandingScreen: React.FC<Props> = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <SafeAreaView edges={['top']} style={{ backgroundColor: T.navy }}>
+      <SafeAreaView edges={['top']} style={{ backgroundColor: T.card, borderBottomWidth: 1, borderBottomColor: T.hairline }}>
         <View style={styles.header}>
           <Logo width={120} dark />
           <View style={styles.headerBtns}>
@@ -259,8 +259,8 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: T.bg },
   header: { height: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16 },
   headerBtns: { flexDirection: 'row', gap: 8 },
-  loginChip: { height: 34, paddingHorizontal: 14, borderRadius: 10, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.4)', alignItems: 'center', justifyContent: 'center' },
-  loginChipText: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  loginChip: { height: 34, paddingHorizontal: 14, borderRadius: 10, borderWidth: 1.5, borderColor: T.navyAccent, alignItems: 'center', justifyContent: 'center' },
+  loginChipText: { color: T.navyAccent, fontSize: 12, fontWeight: '700' },
   registerChip: { height: 34, paddingHorizontal: 14, borderRadius: 10, backgroundColor: T.amber, alignItems: 'center', justifyContent: 'center' },
   registerChipText: { color: '#fff', fontSize: 12, fontWeight: '700' },
 

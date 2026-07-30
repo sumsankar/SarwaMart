@@ -14,13 +14,13 @@ type Props = NativeStackScreenProps<RootStackParams, 'PersonalDetails'>;
 export const PersonalDetailsScreen: React.FC<Props> = ({ navigation }) => {
   const [form, setForm] = useState({ name: '', email: '', state: '', city: '', address: '' });
   const set = (k: keyof typeof form, v: string) => setForm(f => ({ ...f, [k]: v }));
-  const valid = form.name && form.email && form.state;
+  const valid = form.name && form.state;
 
   return (
     <SafeAreaView style={styles.container}>
-      <LinearGradient colors={[T.navy, '#2D5FA8']} style={styles.top}>
+      <View style={styles.top}>
         <Logo width={140} dark />
-      </LinearGradient>
+      </View>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
           <View style={styles.body}>
@@ -48,7 +48,7 @@ export const PersonalDetailsScreen: React.FC<Props> = ({ navigation }) => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: T.bg },
-  top: { height: 120, alignItems: 'center', justifyContent: 'center' },
+  top: { height: 120, alignItems: 'center', justifyContent: 'center', backgroundColor: T.card, borderBottomWidth: 1, borderBottomColor: T.hairline },
   scroll: { flexGrow: 1 },
   body: { padding: 20, gap: 14 },
   title: { fontSize: 24, fontWeight: '900', color: T.text1 },
