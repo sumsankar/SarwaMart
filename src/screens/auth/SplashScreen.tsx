@@ -5,18 +5,23 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { RootStackParams } from '../../navigation/RootNavigator';
 import { Logo } from '../../components/ui/Logo';
 import { T } from '../../constants/tokens';
+import { useAppStore } from '../../store/appStore';
 
 type Props = NativeStackScreenProps<RootStackParams, 'Splash'>;
 
 export const SplashScreen: React.FC<Props> = ({ navigation }) => {
   const opacity = new Animated.Value(0);
   const scale = new Animated.Value(0.8);
+  const loadApiBaseUrl = useAppStore(state => state.loadApiBaseUrl);
 
   useEffect(() => {
     Animated.parallel([
       Animated.timing(opacity, { toValue: 1, duration: 800, useNativeDriver: true }),
       Animated.spring(scale, { toValue: 1, friction: 6, useNativeDriver: true }),
     ]).start();
+
+    loadApiBaseUrl();
+
     const t = setTimeout(() => navigation.replace('PublicLanding'), 2000);
     return () => clearTimeout(t);
   }, []);

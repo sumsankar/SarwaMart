@@ -38,7 +38,7 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
   };
 
   const goToOtp = () => {
-    navigation.navigate('MobileEntry');
+    navigation.navigate('MobileEntry', { mode: 'login' });
   };
 
   if (step === 'pin') {
@@ -63,7 +63,7 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
         </View>
         <View style={styles.keypadWrap}>
           <Keypad onKey={handleKey} />
-          <TouchableOpacity onPress={() => navigation.navigate('MobileEntry')}>
+          <TouchableOpacity onPress={() => navigation.navigate('MobileEntry', { mode: 'login' })}>
             <Text style={styles.forgot}>Forgot PIN? Login with OTP</Text>
           </TouchableOpacity>
         </View>
@@ -137,7 +137,7 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
 
             <View style={styles.divider}><View style={styles.divLine} /><Text style={styles.divText}>OR</Text><View style={styles.divLine} /></View>
 
-            <TouchableOpacity onPress={() => navigation.navigate('RolePicker')} style={styles.registerLink}>
+            <TouchableOpacity onPress={() => navigation.navigate('MobileEntry', { mode: 'register' })} style={styles.registerLink}>
               <Text style={styles.registerLinkText}>New to SarwaMart? <Text style={{ color: T.amber, fontWeight: '700' }}>Register free →</Text></Text>
             </TouchableOpacity>
 

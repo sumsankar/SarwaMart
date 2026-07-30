@@ -56,8 +56,8 @@ export type RootStackParams = {
   Splash: undefined;
   PublicLanding: undefined;
   Login: undefined;
-  MobileEntry: undefined;
-  OTP: { phone: string };
+  MobileEntry: { mode?: 'login' | 'register' } | undefined;
+  OTP: { phone: string; mode?: 'login' | 'register'; sentOtp?: string };
   PINSetup: undefined;
   PINLogin: undefined;
   RolePicker: undefined;

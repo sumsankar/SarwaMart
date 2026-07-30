@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 
 type Role = 'seller' | 'buyer';
 
@@ -9,14 +10,19 @@ interface AppState {
   selectedItem: any;
   selectedRequest: any;
   toast: { msg: string; visible: boolean; type: 'success' | 'error' | 'info' };
+  apiBaseUrl: string;
   setRole: (role: Role) => void;
   setLoggedIn: (val: boolean) => void;
   setSelectedItem: (item: any) => void;
   setSelectedRequest: (req: any) => void;
   showToast: (msg: string, type?: 'success' | 'error' | 'info') => void;
   hideToast: () => void;
+  setApiBaseUrl: (url: string) => void;
+  loadApiBaseUrl: () => Promise<void>;
   logout: () => Promise<void>;
 }
+
+const DEFAULT_API_BASE = 'https://sarwamart-api-g3bhexcsggetc4eu.canadacentral-01.azurewebsites.net/';
 
 export const useAppStore = create<AppState>((set) => ({
   role: 'seller',
@@ -24,6 +30,7 @@ export const useAppStore = create<AppState>((set) => ({
   selectedItem: null,
   selectedRequest: null,
   toast: { msg: '', visible: false, type: 'success' },
+  apiBaseUrl: DEFAULT_API_BASE,
 
   setRole: (role) => {
     set({ role });
@@ -44,6 +51,33 @@ export const useAppStore = create<AppState>((set) => ({
   },
 
   hideToast: () => set(s => ({ toast: { ...s.toast, visible: false } })),
+
+  setApiBaseUrl: (url) => {
+    set({ apiBaseUrl: url });
+    AsyncStorage.setItem('sm_api_base', url);
+  },
+
+  loadApiBaseUrl: async () => {
+    const saved = await AsyncStorage.getItem('sm_api_base');
+    if (saved) {
+      // Migrate to the new azure websites URL if it was previously pointing to localhost/10.0.2.2/etc.
+      if (
+        saved === 'https://localhost:7096' ||
+        saved === 'https://10.0.2.2:7096' ||
+        saved.includes('7096') ||
+        saved.includes('5157') ||
+        saved.includes('localhost') ||
+        saved.includes('10.0.2.2')
+      ) {
+        set({ apiBaseUrl: DEFAULT_API_BASE });
+        await AsyncStorage.setItem('sm_api_base', DEFAULT_API_BASE);
+      } else {
+        set({ apiBaseUrl: saved });
+      }
+    } else {
+      set({ apiBaseUrl: DEFAULT_API_BASE });
+    }
+  },
 
   logout: async () => {
     await AsyncStorage.removeItem('sm_role');
