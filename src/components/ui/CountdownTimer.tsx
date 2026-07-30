@@ -6,13 +6,36 @@ interface Props { seedSeconds: number; compact?: boolean; }
 
 const fmt = (n: number) => String(n).padStart(2, '0');
 
+// Static cache to store the target expiration epoch timestamp for each seed.
+// This ensures that the countdown remains stable and continuously ticks down even when
+// components are unmounted, remounted, or updated due to filtering/searching.
+const targetCache: Record<number, number> = {};
+
+const getTargetTime = (seedSeconds: number) => {
+  if (!targetCache[seedSeconds]) {
+    targetCache[seedSeconds] = Date.now() + seedSeconds * 1000;
+  }
+  return targetCache[seedSeconds];
+};
+
 export const CountdownTimer: React.FC<Props> = ({ seedSeconds, compact = false }) => {
-  const [secs, setSecs] = useState(seedSeconds);
+  const targetTime = getTargetTime(seedSeconds);
+  const [secs, setSecs] = useState(() => Math.max(0, Math.floor((targetTime - Date.now()) / 1000)));
 
   useEffect(() => {
-    const t = setInterval(() => setSecs(s => Math.max(0, s - 1)), 1000);
+    // Synchronize initial state if the target time changes
+    setSecs(Math.max(0, Math.floor((targetTime - Date.now()) / 1000)));
+
+    const t = setInterval(() => {
+      const remaining = Math.max(0, Math.floor((targetTime - Date.now()) / 1000));
+      setSecs(remaining);
+      if (remaining === 0) {
+        clearInterval(t);
+      }
+    }, 1000);
+
     return () => clearInterval(t);
-  }, []);
+  }, [targetTime]);
 
   const h = Math.floor(secs / 3600);
   const m = Math.floor((secs % 3600) / 60);

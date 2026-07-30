@@ -309,15 +309,15 @@ const styles = StyleSheet.create({
   emptySubtitleCompact: { fontSize: 11, lineHeight: 16 },
   emptyClearBtn: { marginTop: 10, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, borderWidth: 1.5, borderColor: T.navy, backgroundColor: `${T.navy}08` },
   emptyClearText: { fontSize: 12, fontWeight: '700', color: T.navy },
-  hScroll: { paddingLeft: 16, paddingRight: 4, paddingBottom: 16, gap: 12 },
+  hScroll: { paddingLeft: 16, paddingRight: 16, paddingBottom: 16, gap: 12 },
 
   // My Items card — navy theme (your listings)
   addTile: { width: 120, borderRadius: 14, borderWidth: 2, borderColor: `${T.navy}40`, borderStyle: 'dashed', backgroundColor: `${T.navy}08`, alignItems: 'center', justifyContent: 'center', gap: 10 },
   addCircle: { width: 44, height: 44, borderRadius: 22, backgroundColor: `${T.navy}15`, alignItems: 'center', justifyContent: 'center' },
   addText: { fontSize: 13, fontWeight: '700', color: T.navy, textAlign: 'center' },
-  itemCard: { width: 240, borderRadius: 14, backgroundColor: T.card, borderWidth: 1, borderColor: T.cardBorder, overflow: 'hidden' },
-  itemAccent: { height: 3, backgroundColor: T.navy },
-  itemImg: { height: 100, backgroundColor: `${T.navy}08`, alignItems: 'center', justifyContent: 'center' },
+  itemCard: { width: 240, borderRadius: 14, backgroundColor: T.card, borderWidth: 1, borderColor: T.cardBorder, ...T.shadowSoft },
+  itemAccent: { height: 3, backgroundColor: T.navy, borderTopLeftRadius: 14, borderTopRightRadius: 14 },
+  itemImg: { height: 100, backgroundColor: `${T.navy}08`, alignItems: 'center', justifyContent: 'center', borderTopLeftRadius: 14, borderTopRightRadius: 14 },
   itemEmoji: { fontSize: 52 },
   statusPillWrap: { position: 'absolute', top: 8, right: 8 },
   itemBody: { padding: 12, gap: 6 },
@@ -338,8 +338,8 @@ const styles = StyleSheet.create({
   itemNoBidsText: { fontSize: 11, color: T.text3, fontStyle: 'italic' },
 
   // Buyer Request card — amber theme (incoming demand), horizontal
-  reqCardH: { width: 240, borderRadius: 14, backgroundColor: T.card, borderWidth: 1, borderColor: T.cardBorder, overflow: 'hidden' },
-  reqAccent: { height: 3, backgroundColor: T.amber },
+  reqCardH: { width: 240, borderRadius: 14, backgroundColor: T.card, borderWidth: 1, borderColor: T.cardBorder, ...T.shadowSoft },
+  reqAccent: { height: 3, backgroundColor: T.amber, borderTopLeftRadius: 14, borderTopRightRadius: 14 },
   reqHeaderH: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, paddingTop: 12 },
   reqAvatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: `${T.amber}20`, alignItems: 'center', justifyContent: 'center' },
   reqAvatarText: { fontSize: 12, fontWeight: '800', color: T.amber },

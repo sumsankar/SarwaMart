@@ -75,9 +75,9 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-          <LinearGradient colors={[T.navy, '#2D5FA8']} style={styles.topBanner}>
+          <View style={styles.topBanner}>
             <Logo width={160} dark />
-          </LinearGradient>
+          </View>
 
           <View style={styles.form}>
             <Text style={styles.title}>Welcome Back 👋</Text>
@@ -154,7 +154,7 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: T.bg },
   scroll: { flexGrow: 1 },
-  topBanner: { height: 160, alignItems: 'center', justifyContent: 'center' },
+  topBanner: { height: 160, alignItems: 'center', justifyContent: 'center', backgroundColor: T.card, borderBottomWidth: 1, borderBottomColor: T.hairline },
   form: { flex: 1, padding: 24, gap: 16 },
   title: { fontSize: 24, fontWeight: '900', color: T.text1 },
   sub: { fontSize: 14, color: T.text2 },

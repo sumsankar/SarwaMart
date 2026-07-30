@@ -19,9 +19,9 @@ export const MobileEntryScreen: React.FC<Props> = ({ navigation }) => {
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-          <LinearGradient colors={[T.navy, '#2D5FA8']} style={styles.top}>
+          <View style={styles.top}>
             <Logo width={160} dark />
-          </LinearGradient>
+          </View>
           <View style={styles.body}>
             <Text style={styles.title}>Welcome to SarwaMart</Text>
             <Text style={styles.sub}>Enter your mobile number to continue</Text>
@@ -46,7 +46,7 @@ export const MobileEntryScreen: React.FC<Props> = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: T.bg },
   scroll: { flexGrow: 1 },
-  top: { height: 160, alignItems: 'center', justifyContent: 'center' },
+  top: { height: 160, alignItems: 'center', justifyContent: 'center', backgroundColor: T.card, borderBottomWidth: 1, borderBottomColor: T.hairline },
   body: { flex: 1, padding: 24, gap: 16 },
   title: { fontSize: 24, fontWeight: '900', color: T.text1 },
   sub: { fontSize: 14, color: T.text2 },

@@ -25,9 +25,9 @@ export const UnderReviewScreen: React.FC<Props> = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <LinearGradient colors={[T.navy, '#2D5FA8']} style={styles.top}>
+      <View style={styles.top}>
         <Logo width={140} dark />
-      </LinearGradient>
+      </View>
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.body}>
           <View style={styles.iconWrap}>
@@ -75,7 +75,7 @@ export const UnderReviewScreen: React.FC<Props> = ({ navigation }) => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: T.bg },
-  top: { height: 120, alignItems: 'center', justifyContent: 'center' },
+  top: { height: 120, alignItems: 'center', justifyContent: 'center', backgroundColor: T.card, borderBottomWidth: 1, borderBottomColor: T.hairline },
   scroll: { flexGrow: 1 },
   body: { flex: 1, padding: 32, alignItems: 'center', justifyContent: 'center', gap: 18 },
   iconWrap: { width: 100, height: 100, borderRadius: 28, backgroundColor: `${T.amber}15`, alignItems: 'center', justifyContent: 'center' },

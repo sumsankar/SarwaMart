@@ -65,7 +65,9 @@ const styles = StyleSheet.create({
     backgroundColor: T.card, borderWidth: 1.5, borderColor: T.hairline,
     borderRadius: 10, paddingHorizontal: 14, gap: 8,
   },
-  focused: { borderColor: T.navy },
+  focused: {
+    borderColor: T.navyAccent,
+  },
   errored: { borderColor: T.danger },
   prefix: { color: T.text3, fontSize: 15 },
   input: { flex: 1, fontSize: 15, color: T.text1 },

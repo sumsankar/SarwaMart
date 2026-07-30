@@ -35,6 +35,8 @@ export const Button: React.FC<Props> = ({
   const height = size === 'sm' ? 36 : 48;
   const fontSize = size === 'sm' ? 13 : 15;
 
+  const hasShadow = !disabled && (variant === 'primary' || variant === 'navy' || variant === 'success');
+
   return (
     <TouchableOpacity
       activeOpacity={0.75}
@@ -44,6 +46,10 @@ export const Button: React.FC<Props> = ({
       style={[
         styles.base,
         { height, backgroundColor: v.bg, borderColor: v.border || 'transparent', borderWidth: v.border ? 1.5 : 0 },
+        hasShadow && styles.hasShadow,
+        variant === 'primary' && styles.primaryShadow,
+        variant === 'navy' && styles.navyShadow,
+        variant === 'success' && styles.successShadow,
         fullWidth && styles.fullWidth,
         disabled && styles.disabled,
         pressed && styles.pressed,
@@ -61,8 +67,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     borderRadius: 12, paddingHorizontal: 20, gap: 6,
   },
+  hasShadow: {
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.16,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  primaryShadow: { shadowColor: T.amber },
+  navyShadow: { shadowColor: T.navy },
+  successShadow: { shadowColor: T.green },
   fullWidth: { width: '100%' },
   disabled: { opacity: 0.45 },
-  pressed: { opacity: 0.82, transform: [{ scale: 0.97 }] },
-  label: { fontWeight: '600', letterSpacing: 0.1 },
+  pressed: { opacity: 0.85, transform: [{ scale: 0.96 }] },
+  label: { fontWeight: '700', letterSpacing: 0.3 }, // Slightly heavier and wider letter spacing for ultra premium text look
 });
