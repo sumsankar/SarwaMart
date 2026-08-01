@@ -12,10 +12,22 @@ import { useAppStore } from '../../store/appStore';
 
 type Props = NativeStackScreenProps<RootStackParams, 'UnderReview'>;
 
-const STEPS = [
-  { label: 'Submitted', done: true },
-  { label: 'KYC Review', done: true },
-  { label: 'Trade Access', done: false },
+const TWO_STAGES = [
+  {
+    stage: 1,
+    title: 'Submitted',
+    status: 'Completed',
+    desc: 'Application details & documentation received',
+    isDone: true,
+  },
+  {
+    stage: 2,
+    title: 'Under Review',
+    status: 'In Progress',
+    desc: 'Desk team verifying trade identity & branch assignment',
+    isDone: false,
+    isActive: true,
+  },
 ];
 
 export const UnderReviewScreen: React.FC<Props> = ({ navigation }) => {
@@ -37,39 +49,86 @@ export const UnderReviewScreen: React.FC<Props> = ({ navigation }) => {
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.body}>
-          <View style={styles.card}>
+          <View style={styles.heroCard}>
             <View style={styles.iconCircle}>
-              <Text style={{ fontSize: 44 }}>🛡️</Text>
+              <Text style={{ fontSize: 42 }}>🛡️</Text>
             </View>
 
-            <Text style={styles.title}>Account Under Verification</Text>
+            <Text style={styles.title}>Account Under Review</Text>
             <Text style={styles.sub}>
-              Thank you for registering on SarwaMart! Our desk team is verifying your trade & location credentials.
+              Thank you for registering! Your application has been submitted and is currently being verified by the SarwaMart Desk Team.
             </Text>
 
-            {/* Timeline Progress */}
-            <View style={styles.timelineCard}>
-              {STEPS.map((s, idx) => (
-                <View key={s.label} style={styles.timelineRow}>
-                  <View style={[styles.timelineDot, s.done && styles.timelineDotDone]}>
-                    <Text style={styles.timelineDotText}>{s.done ? '✓' : idx + 1}</Text>
+            {/* 2-Stage Verification Timeline */}
+            <View style={styles.twoStageContainer}>
+              {TWO_STAGES.map((s, idx) => (
+                <View key={s.title} style={styles.stageCardItem}>
+                  <View style={styles.stageHeaderRow}>
+                    <View style={styles.stageLeft}>
+                      <View
+                        style={[
+                          styles.stageBadgeCircle,
+                          s.isDone && styles.stageBadgeCircleDone,
+                          s.isActive && styles.stageBadgeCircleActive,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.stageBadgeText,
+                            (s.isDone || s.isActive) && styles.stageBadgeTextActive,
+                          ]}
+                        >
+                          {s.isDone ? '✓' : s.stage}
+                        </Text>
+                      </View>
+                      <View style={styles.stageTitleCol}>
+                        <Text style={[styles.stageTitle, s.isActive && styles.stageTitleActive]}>
+                          {s.title}
+                        </Text>
+                        <Text style={styles.stageDesc}>{s.desc}</Text>
+                      </View>
+                    </View>
+
+                    <View
+                      style={[
+                        styles.statusPill,
+                        s.isDone && styles.statusPillDone,
+                        s.isActive && styles.statusPillActive,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.statusPillText,
+                          s.isDone && styles.statusPillTextDone,
+                          s.isActive && styles.statusPillTextActive,
+                        ]}
+                      >
+                        {s.isDone ? '✓ Completed' : '⏳ In Progress'}
+                      </Text>
+                    </View>
                   </View>
-                  {idx < STEPS.length - 1 && <View style={[styles.timelineLine, s.done && styles.timelineLineDone]} />}
-                  <Text style={[styles.timelineLabel, s.done && styles.timelineLabelDone]}>{s.label}</Text>
+
+                  {idx === 0 && <View style={styles.stageConnectorLine} />}
                 </View>
               ))}
             </View>
 
+            {/* Time Expectation Box */}
             <View style={styles.noticeBox}>
               <Icon name="info" size={16} color={T.navy} />
               <Text style={styles.noticeText}>
-                Approval takes <Text style={{ fontWeight: '800' }}>under 24 hours</Text>. In the meantime, you can browse live fish & prawn listings on SarwaMart.
+                Approval takes <Text style={{ fontWeight: '800', color: T.navy }}>under 24 hours</Text>. You will receive SMS & email notifications once your trade account is activated.
               </Text>
             </View>
           </View>
 
-          {/* Actions */}
-          <Button label="Browse Live Marketplace →" onPress={goToPublic} fullWidth style={styles.primaryBtn} />
+          {/* Action Buttons */}
+          <Button
+            label="Browse Live Marketplace →"
+            onPress={goToPublic}
+            fullWidth
+            style={styles.primaryBtn}
+          />
 
           <View style={styles.linkRow}>
             <TouchableOpacity onPress={goToPublic} style={styles.actionPill}>
@@ -77,7 +136,13 @@ export const UnderReviewScreen: React.FC<Props> = ({ navigation }) => {
               <Text style={styles.actionPillText}>Support Desk</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity onPress={async () => { await logout(); goToPublic(); }} style={[styles.actionPill, { borderColor: `${T.danger}40` }]}>
+            <TouchableOpacity
+              onPress={async () => {
+                await logout();
+                goToPublic();
+              }}
+              style={[styles.actionPill, { borderColor: `${T.danger}40` }]}
+            >
               <Icon name="logout" size={14} color={T.danger} />
               <Text style={[styles.actionPillText, { color: T.danger }]}>Logout</Text>
             </TouchableOpacity>
@@ -97,51 +162,69 @@ const styles = StyleSheet.create({
 
   scrollContent: { paddingBottom: 40 },
   body: { padding: 20, gap: 16, alignItems: 'center' },
-  card: {
+
+  heroCard: {
     width: '100%',
     backgroundColor: T.card,
-    borderRadius: 20,
+    borderRadius: 22,
     borderWidth: 1,
     borderColor: T.cardBorder,
-    padding: 24,
+    padding: 22,
     alignItems: 'center',
-    gap: 14,
+    gap: 16,
     ...T.shadowSoft,
   },
   iconCircle: {
-    width: 80,
-    height: 80,
+    width: 76,
+    height: 76,
     borderRadius: 24,
     backgroundColor: '#FEF3C7',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: '#FDE68A',
   },
-  title: { fontSize: 22, fontWeight: '900', color: T.text1, textAlign: 'center' },
+  title: { fontSize: 23, fontWeight: '900', color: T.text1, textAlign: 'center' },
   sub: { fontSize: 13, color: T.text2, textAlign: 'center', lineHeight: 20 },
 
-  timelineCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#F8FAFC',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderRadius: 14,
+  twoStageContainer: {
     width: '100%',
-    gap: 12,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: T.hairline,
+    padding: 16,
+    gap: 12,
   },
-  timelineRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  timelineDot: { width: 24, height: 24, borderRadius: 12, backgroundColor: '#E2E8F0', alignItems: 'center', justifyContent: 'center' },
-  timelineDotDone: { backgroundColor: T.green },
-  timelineDotText: { fontSize: 11, fontWeight: '900', color: '#fff' },
-  timelineLine: { width: 24, height: 2, backgroundColor: '#E2E8F0' },
-  timelineLineDone: { backgroundColor: T.green },
-  timelineLabel: { fontSize: 11, fontWeight: '700', color: T.text3 },
-  timelineLabelDone: { color: T.green },
+  stageCardItem: { gap: 8 },
+  stageHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+  stageLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
+  stageBadgeCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#E2E8F0',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stageBadgeCircleDone: { backgroundColor: T.green },
+  stageBadgeCircleActive: { backgroundColor: T.amber },
+  stageBadgeText: { fontSize: 13, fontWeight: '900', color: T.text3 },
+  stageBadgeTextActive: { color: '#FFFFFF' },
+
+  stageTitleCol: { flex: 1, gap: 2 },
+  stageTitle: { fontSize: 15, fontWeight: '800', color: T.text1 },
+  stageTitleActive: { color: T.navy },
+  stageDesc: { fontSize: 11, color: T.text3, lineHeight: 15 },
+
+  statusPill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, backgroundColor: '#E2E8F0' },
+  statusPillDone: { backgroundColor: `${T.green}14` },
+  statusPillActive: { backgroundColor: `${T.amber}16` },
+  statusPillText: { fontSize: 11, fontWeight: '800', color: T.text3 },
+  statusPillTextDone: { color: T.green },
+  statusPillTextActive: { color: T.amber },
+
+  stageConnectorLine: { height: 16, width: 2, backgroundColor: '#E2E8F0', marginLeft: 15, marginVertical: -4 },
 
   noticeBox: {
     flexDirection: 'row',

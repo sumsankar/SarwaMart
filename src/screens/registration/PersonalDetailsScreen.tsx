@@ -219,8 +219,16 @@ export const PersonalDetailsScreen: React.FC<Props> = ({ navigation, route }) =>
         </View>
       </LinearGradient>
 
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-        <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets={true}
+          showsVerticalScrollIndicator={false}
+        >
           <View style={styles.body}>
             <Text style={styles.title}>Personal & Business Info</Text>
             <Text style={styles.sub}>Enter your details for official trade identity & KYC verification</Text>
@@ -295,62 +303,24 @@ export const PersonalDetailsScreen: React.FC<Props> = ({ navigation, route }) =>
             </View>
           </View>
         </ScrollView>
-      </KeyboardAvoidingView>
 
-      {/* State Picker Modal */}
-      <Modal visible={stateModalVisible} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Select State</Text>
-              <TouchableOpacity onPress={() => setStateModalVisible(false)} style={styles.closeBtn}>
-                <Text style={styles.closeBtnText}>✕</Text>
-              </TouchableOpacity>
-            </View>
-
-            {loadingStates ? (
-              <ActivityIndicator size="large" color={T.navy} style={{ marginVertical: 30 }} />
-            ) : (
-              <FlatList
-                data={statesList}
-                keyExtractor={(item, idx) => item.id || item.name || idx.toString()}
-                renderItem={({ item }) => (
-                  <TouchableOpacity
-                    style={[styles.stateItem, form.state === item.name && styles.stateItemSelected]}
-                    onPress={() => {
-                      set('state', item.name);
-                      if (item.id) set('stateId', item.id);
-                      setStateModalVisible(false);
-                    }}
-                  >
-                    <Text style={[styles.stateItemText, form.state === item.name && styles.stateItemTextSelected]}>
-                      {item.name}
-                    </Text>
-                    {form.state === item.name && <Text style={styles.checkmarkText}>✓</Text>}
-                  </TouchableOpacity>
-                )}
-              />
-            )}
-          </View>
+        {/* Bottom Action Footer inside KeyboardAvoidingView */}
+        <View style={styles.footer}>
+          <Button
+            label={loading ? "Saving Personal Details..." : "Continue to Branch Assignment →"}
+            onPress={isFormValid && !loading ? handleContinue : undefined}
+            disabled={!isFormValid || loading}
+            fullWidth
+            style={styles.continueBtn}
+          />
+          <TouchableOpacity
+            onPress={() => navigation.reset({ index: 0, routes: [{ name: 'PublicLanding' }] })}
+            style={styles.homeLinkBtn}
+          >
+            <Text style={styles.homeLinkText}>🏠 Go to Home Marketplace</Text>
+          </TouchableOpacity>
         </View>
-      </Modal>
-
-      {/* Bottom Fixed Action Footer */}
-      <View style={styles.footer}>
-        <Button
-          label={loading ? "Saving Personal Details..." : "Continue to Branch Assignment →"}
-          onPress={isFormValid && !loading ? handleContinue : undefined}
-          disabled={!isFormValid || loading}
-          fullWidth
-          style={styles.continueBtn}
-        />
-        <TouchableOpacity
-          onPress={() => navigation.reset({ index: 0, routes: [{ name: 'PublicLanding' }] })}
-          style={styles.homeLinkBtn}
-        >
-          <Text style={styles.homeLinkText}>🏠 Go to Home Marketplace</Text>
-        </TouchableOpacity>
-      </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
@@ -365,7 +335,7 @@ const styles = StyleSheet.create({
   progressTrack: { height: 4, backgroundColor: '#E2E8F0', borderRadius: 2 },
   progressFill: { height: 4, backgroundColor: T.amber, borderRadius: 2 },
 
-  scrollContent: { paddingBottom: 110 },
+  scrollContent: { paddingBottom: 30 },
   body: { padding: 20, gap: 12 },
   title: { fontSize: 26, fontWeight: '900', color: T.text1 },
   sub: { fontSize: 14, color: T.text2, lineHeight: 20 },
@@ -410,7 +380,7 @@ const styles = StyleSheet.create({
   stateItemTextSelected: { color: T.navy, fontWeight: '800' },
   checkmarkText: { color: T.navy, fontWeight: '900', fontSize: 16 },
 
-  footer: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: T.card, padding: 16, borderTopWidth: 1, borderTopColor: T.hairline, gap: 10, alignItems: 'center', ...T.shadowSoft },
+  footer: { backgroundColor: T.card, padding: 16, borderTopWidth: 1, borderTopColor: T.hairline, gap: 10, alignItems: 'center', ...T.shadowSoft },
   continueBtn: { height: 52, borderRadius: 14, backgroundColor: T.amber },
   homeLinkBtn: { paddingVertical: 4, paddingHorizontal: 12 },
   homeLinkText: { color: T.navy, fontSize: 13, fontWeight: '700' },
