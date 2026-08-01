@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { LinearGradient } from 'expo-linear-gradient';
 import { RootStackParams } from '../../navigation/RootNavigator';
 import { Logo } from '../../components/ui/Logo';
 import { Button } from '../../components/ui/Button';
+import { Icon } from '../../components/ui/Icon';
 import { T } from '../../constants/tokens';
 
 type Props = NativeStackScreenProps<RootStackParams, 'AccountType'>;
@@ -14,35 +15,108 @@ export const AccountTypeScreen: React.FC<Props> = ({ navigation }) => {
   const [type, setType] = useState<'individual' | 'company' | null>(null);
 
   const options = [
-    { key: 'individual' as const, emoji: '👤', title: 'Individual', desc: 'I trade under my own name.' },
-    { key: 'company' as const, emoji: '🏢', title: 'Company', desc: "We trade as a registered business. I'll set up the team." },
+    {
+      key: 'individual' as const,
+      emoji: '👤',
+      badge: 'PERSONAL TRADING',
+      title: 'Individual Trader / Farmer',
+      desc: 'I trade aqua products under my personal name or sole proprietorship.',
+      features: [
+        'Quick signup with Aadhaar / PAN verification',
+        'Direct bank account settlement',
+        'Personal bid management dashboard',
+      ],
+    },
+    {
+      key: 'company' as const,
+      emoji: '🏢',
+      badge: 'BUSINESS & TEAMS',
+      title: 'Registered Company / Firm',
+      desc: 'We trade as a registered business entity (Pvt Ltd, Partnership, LLP).',
+      features: [
+        'GST & Business License (FSSAI) verification',
+        'Multi-user team access & manager roles',
+        'Tax invoices & bulk purchase statements',
+      ],
+    },
   ];
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.top}>
-        <Logo width={140} dark />
-      </View>
-      <View style={styles.body}>
-        <Text style={styles.title}>Create Account</Text>
-        <Text style={styles.sub}>Individual or Company?</Text>
-        <Text style={styles.hint}>Choose your account type</Text>
-        {options.map(o => (
-          <TouchableOpacity key={o.key} onPress={() => setType(o.key)} style={[styles.card, type === o.key && styles.cardSelected]}>
-            <Text style={styles.emoji}>{o.emoji}</Text>
-            <View style={styles.text}>
-              <Text style={[styles.cardTitle, type === o.key && { color: T.navy }]}>{o.title}</Text>
-              <Text style={styles.cardDesc}>{o.desc}</Text>
-            </View>
-            <View style={[styles.radio, type === o.key && styles.radioFilled]}>
-              {type === o.key && <View style={styles.dot} />}
-            </View>
+      {/* Top Hero Banner Header */}
+      <LinearGradient colors={['#F8FAFC', '#FFFFFF']} style={styles.topHeader}>
+        <View style={styles.headerRow}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backCircleBtn}>
+            <Icon name="chevronL" size={16} color={T.navy} />
           </TouchableOpacity>
-        ))}
-        <Button label="Continue" onPress={type ? () => navigation.navigate('PersonalDetails') : undefined} disabled={!type} fullWidth style={styles.btn} />
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.center}>
-          <Text style={styles.link}>← Go back</Text>
-        </TouchableOpacity>
+          <Logo width={120} dark />
+          <View style={styles.stepPill}>
+            <Text style={styles.stepPillText}>Step 2 of 4</Text>
+          </View>
+        </View>
+        <View style={styles.progressTrack}>
+          <View style={[styles.progressFill, { width: '50%' }]} />
+        </View>
+      </LinearGradient>
+
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <View style={styles.body}>
+          <Text style={styles.title}>Account Structure</Text>
+          <Text style={styles.sub}>Choose whether you are registering as an individual or a business enterprise</Text>
+
+          <View style={styles.cardsGap}>
+            {options.map(o => {
+              const isActive = type === o.key;
+              return (
+                <TouchableOpacity
+                  key={o.key}
+                  onPress={() => setType(o.key)}
+                  style={[styles.card, isActive && styles.cardActive]}
+                  activeOpacity={0.88}
+                >
+                  <View style={styles.cardHeaderRow}>
+                    <View style={[styles.badgeContainer, isActive && styles.badgeContainerActive]}>
+                      <Text style={[styles.badgeText, isActive && styles.badgeTextActive]}>{o.badge}</Text>
+                    </View>
+                    <View style={[styles.radioCircle, isActive && styles.radioCircleActive]}>
+                      {isActive && <Text style={styles.checkmark}>✓</Text>}
+                    </View>
+                  </View>
+
+                  <View style={styles.roleMainRow}>
+                    <View style={[styles.emojiCircle, isActive && styles.emojiCircleActive]}>
+                      <Text style={styles.emojiText}>{o.emoji}</Text>
+                    </View>
+                    <View style={styles.roleTextContent}>
+                      <Text style={[styles.roleTitle, isActive && styles.roleTitleActive]}>{o.title}</Text>
+                      <Text style={styles.roleDesc}>{o.desc}</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.benefitsBox}>
+                    {o.features.map((f, idx) => (
+                      <View key={idx} style={styles.bulletRow}>
+                        <Icon name="checkCircle" size={12} color={isActive ? T.navy : T.green} />
+                        <Text style={styles.bulletText}>{f}</Text>
+                      </View>
+                    ))}
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+      </ScrollView>
+
+      {/* Bottom Fixed Action Footer */}
+      <View style={styles.footer}>
+        <Button
+          label="Continue to Personal Details →"
+          onPress={type ? () => navigation.navigate('PersonalDetails') : undefined}
+          disabled={!type}
+          fullWidth
+          style={styles.continueBtn}
+        />
       </View>
     </SafeAreaView>
   );
@@ -50,21 +124,55 @@ export const AccountTypeScreen: React.FC<Props> = ({ navigation }) => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: T.bg },
-  top: { height: 120, alignItems: 'center', justifyContent: 'center', backgroundColor: T.card, borderBottomWidth: 1, borderBottomColor: T.hairline },
-  body: { flex: 1, padding: 24, gap: 14 },
-  title: { fontSize: 24, fontWeight: '900', color: T.text1 },
-  sub: { fontSize: 16, color: T.text2 },
-  hint: { fontSize: 13, color: T.text3 },
-  card: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 18, backgroundColor: T.card, borderRadius: 14, borderWidth: 2, borderColor: T.hairline },
-  cardSelected: { borderColor: T.navy, backgroundColor: `${T.navy}06` },
-  emoji: { fontSize: 36 },
-  text: { flex: 1 },
-  cardTitle: { fontSize: 16, fontWeight: '700', color: T.text1 },
-  cardDesc: { fontSize: 12, color: T.text2, marginTop: 3 },
-  radio: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: T.hairline, alignItems: 'center', justifyContent: 'center' },
-  radioFilled: { borderColor: T.navy },
-  dot: { width: 10, height: 10, borderRadius: 5, backgroundColor: T.navy },
-  btn: { height: 52, borderRadius: 14, marginTop: 8 },
-  center: { alignItems: 'center' },
-  link: { color: T.navy, fontSize: 14, fontWeight: '600' },
+  topHeader: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: T.hairline },
+  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+  backCircleBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: `${T.navy}10`, alignItems: 'center', justifyContent: 'center' },
+  stepPill: { backgroundColor: T.amber, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
+  stepPillText: { color: '#fff', fontSize: 11, fontWeight: '800' },
+  progressTrack: { height: 4, backgroundColor: '#E2E8F0', borderRadius: 2 },
+  progressFill: { height: 4, backgroundColor: T.amber, borderRadius: 2 },
+
+  scrollContent: { paddingBottom: 100 },
+  body: { padding: 20, gap: 12 },
+  title: { fontSize: 26, fontWeight: '900', color: T.text1 },
+  sub: { fontSize: 14, color: T.text2, lineHeight: 20 },
+
+  cardsGap: { gap: 16, marginTop: 8 },
+  card: {
+    backgroundColor: T.card,
+    borderRadius: 18,
+    borderWidth: 2,
+    borderColor: T.cardBorder,
+    padding: 18,
+    gap: 12,
+    ...T.shadowSoft,
+  },
+  cardActive: {
+    borderColor: T.navy,
+    backgroundColor: '#F8FAFC',
+  },
+  cardHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  badgeContainer: { backgroundColor: '#F1F5F9', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+  badgeContainerActive: { backgroundColor: `${T.navy}14` },
+  badgeText: { fontSize: 10, fontWeight: '800', color: T.text3 },
+  badgeTextActive: { color: T.navy },
+  radioCircle: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: T.hairline, alignItems: 'center', justifyContent: 'center' },
+  radioCircleActive: { backgroundColor: T.navy, borderColor: T.navy },
+  checkmark: { color: '#fff', fontSize: 12, fontWeight: '900' },
+
+  roleMainRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 14 },
+  emojiCircle: { width: 52, height: 52, borderRadius: 16, backgroundColor: '#F1F5F9', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: T.hairline },
+  emojiCircleActive: { backgroundColor: `${T.navy}12`, borderColor: T.navy },
+  emojiText: { fontSize: 26 },
+  roleTextContent: { flex: 1, gap: 4 },
+  roleTitle: { fontSize: 18, fontWeight: '800', color: T.text1 },
+  roleTitleActive: { color: T.navy },
+  roleDesc: { fontSize: 13, color: T.text2, lineHeight: 18 },
+
+  benefitsBox: { backgroundColor: '#FFFFFF', padding: 12, borderRadius: 12, gap: 8, borderWidth: 1, borderColor: T.hairline },
+  bulletRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  bulletText: { fontSize: 12, color: T.text2, fontWeight: '600', flex: 1 },
+
+  footer: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: T.card, padding: 16, borderTopWidth: 1, borderTopColor: T.hairline, ...T.shadowSoft },
+  continueBtn: { height: 52, borderRadius: 14, backgroundColor: T.amber },
 });
