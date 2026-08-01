@@ -148,10 +148,11 @@
                 ],
                 "parameters": [
                     {
-                        "name": "state",
+                        "name": "stateId",
                         "in": "query",
                         "schema": {
-                            "type": "string"
+                            "type": "string",
+                            "format": "uuid"
                         }
                     },
                     {
@@ -3746,10 +3747,11 @@
                 ],
                 "parameters": [
                     {
-                        "name": "state",
+                        "name": "stateId",
                         "in": "query",
                         "schema": {
-                            "type": "string"
+                            "type": "string",
+                            "format": "uuid"
                         }
                     },
                     {
@@ -6551,6 +6553,28 @@
                     }
                 }
             }
+        },
+        "/api/v1/states": {
+            "get": {
+                "tags": [
+                    "States"
+                ],
+                "parameters": [
+                    {
+                        "name": "includeInactive",
+                        "in": "query",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
         }
     },
     "components": {
@@ -6768,8 +6792,9 @@
                         "type": "string",
                         "nullable": true
                     },
-                    "state": {
+                    "stateId": {
                         "type": "string",
+                        "format": "uuid",
                         "nullable": true
                     },
                     "city": {
@@ -7022,8 +7047,9 @@
                         "type": "string",
                         "nullable": true
                     },
-                    "state": {
+                    "stateId": {
                         "type": "string",
+                        "format": "uuid",
                         "nullable": true
                     },
                     "city": {
@@ -7212,9 +7238,9 @@
                         "type": "string",
                         "nullable": true
                     },
-                    "state": {
+                    "stateId": {
                         "type": "string",
-                        "nullable": true
+                        "format": "uuid"
                     },
                     "city": {
                         "type": "string",
@@ -7781,9 +7807,9 @@
                         "type": "string",
                         "nullable": true
                     },
-                    "state": {
+                    "stateId": {
                         "type": "string",
-                        "nullable": true
+                        "format": "uuid"
                     },
                     "city": {
                         "type": "string",
@@ -7994,9 +8020,9 @@
                         "type": "string",
                         "nullable": true
                     },
-                    "state": {
+                    "stateId": {
                         "type": "string",
-                        "nullable": true
+                        "format": "uuid"
                     },
                     "city": {
                         "type": "string",

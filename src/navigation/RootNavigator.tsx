@@ -19,6 +19,7 @@ import { PINLoginScreen } from '../screens/auth/PINLoginScreen';
 import { RolePickerScreen } from '../screens/registration/RolePickerScreen';
 import { AccountTypeScreen } from '../screens/registration/AccountTypeScreen';
 import { PersonalDetailsScreen } from '../screens/registration/PersonalDetailsScreen';
+import { BranchPickerScreen } from '../screens/registration/BranchPickerScreen';
 import { ProductsScreen } from '../screens/registration/ProductsScreen';
 import { UnderReviewScreen } from '../screens/registration/UnderReviewScreen';
 
@@ -62,8 +63,9 @@ export type RootStackParams = {
   PINLogin: undefined;
   RolePicker: { token?: string } | undefined;
   AccountType: { token?: string } | undefined;
-  PersonalDetails: undefined;
-  Products: undefined;
+  PersonalDetails: { token?: string } | undefined;
+  BranchPicker: { token?: string } | undefined;
+  Products: { token?: string } | undefined;
   UnderReview: undefined;
   SellerTabs: undefined;
   BuyerTabs: undefined;
@@ -146,6 +148,7 @@ export const RootNavigator = () => (
       <Stack.Screen name="RolePicker" component={RolePickerScreen} />
       <Stack.Screen name="AccountType" component={AccountTypeScreen} />
       <Stack.Screen name="PersonalDetails" component={PersonalDetailsScreen} />
+      <Stack.Screen name="BranchPicker" component={BranchPickerScreen} />
       <Stack.Screen name="Products" component={ProductsScreen} />
       <Stack.Screen name="UnderReview" component={UnderReviewScreen} />
       <Stack.Screen name="SellerTabs" component={SellerTabNavigator} />

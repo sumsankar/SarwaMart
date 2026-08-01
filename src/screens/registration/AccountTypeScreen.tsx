@@ -96,15 +96,15 @@ export const AccountTypeScreen: React.FC<Props> = ({ navigation, route }) => {
 
       setLoading(false);
       if (response.ok || response.status === 200 || response.status === 204) {
-        navigation.navigate('PersonalDetails');
+        navigation.navigate('PersonalDetails', { token: activeToken });
       } else {
         console.warn('Account type registration API status:', response.status);
-        navigation.navigate('PersonalDetails');
+        navigation.navigate('PersonalDetails', { token: activeToken });
       }
     } catch (err) {
       console.warn('Error calling registration account-type PUT API:', err);
       setLoading(false);
-      navigation.navigate('PersonalDetails');
+      navigation.navigate('PersonalDetails', { token: activeToken });
     }
   };
 
@@ -118,11 +118,11 @@ export const AccountTypeScreen: React.FC<Props> = ({ navigation, route }) => {
           </TouchableOpacity>
           <Logo width={120} dark />
           <View style={styles.stepPill}>
-            <Text style={styles.stepPillText}>Step 2 of 4</Text>
+            <Text style={styles.stepPillText}>Step 2 of 5</Text>
           </View>
         </View>
         <View style={styles.progressTrack}>
-          <View style={[styles.progressFill, { width: '50%' }]} />
+          <View style={[styles.progressFill, { width: '40%' }]} />
         </View>
       </LinearGradient>
 

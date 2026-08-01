@@ -44,7 +44,7 @@ export const ProductsScreen: React.FC<Props> = ({ navigation }) => {
           </TouchableOpacity>
           <Logo width={120} dark />
           <View style={styles.stepPill}>
-            <Text style={styles.stepPillText}>Step 4 of 4</Text>
+            <Text style={styles.stepPillText}>Step 5 of 5</Text>
           </View>
         </View>
         <View style={styles.progressTrack}>
