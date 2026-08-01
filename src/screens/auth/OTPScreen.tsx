@@ -33,13 +33,13 @@ const getErrorMessage = async (response: Response, defaultMsg: string): Promise<
   try {
     const text = await response.text();
     if (!text) return defaultMsg;
-    
+
     try {
       const json = JSON.parse(text);
       if (json.detail) return json.detail;
       if (json.message) return json.message;
       if (json.error) return json.error;
-      
+
       if (json.errors && typeof json.errors === 'object') {
         const firstKey = Object.keys(json.errors)[0];
         if (firstKey) {
@@ -115,21 +115,26 @@ export const OTPScreen: React.FC<Props> = ({ navigation, route }) => {
         let extractedToken = '';
         try {
           const text = await response.text();
+          console.log('Verify OTP response body:', text);
           if (text) {
             try {
               const json = JSON.parse(text);
               extractedToken =
-                json.token ||
+                json.otpToken ||
                 json.accessToken ||
+                json.access_token ||
                 json.jwt ||
                 json.jwtToken ||
                 json.authToken ||
+                json.auth_token ||
                 json.value ||
                 json.data?.token ||
                 json.data?.accessToken ||
+                json.data?.access_token ||
                 json.data?.jwt ||
                 json.result?.token ||
                 json.result?.accessToken ||
+                json.result?.access_token ||
                 '';
             } catch {
               const trimmed = text.trim();
@@ -142,16 +147,26 @@ export const OTPScreen: React.FC<Props> = ({ navigation, route }) => {
           console.warn('Could not parse verify OTP response body:', e);
         }
 
+        if (!extractedToken) {
+          const authHeader = response.headers.get('Authorization') || response.headers.get('authorization') || response.headers.get('x-auth-token');
+          if (authHeader) {
+            extractedToken = authHeader.replace(/^Bearer\s+/i, '');
+          }
+        }
+
+        console.log('====================================');
+        console.log('✅ OTP VERIFICATION SUCCESSFUL!');
+        console.log('🔑 RECEIVED TOKEN:', extractedToken || '(No token string found in response body/headers)');
+        console.log('====================================');
         if (extractedToken) {
-          console.log('Saved authentication token:', extractedToken);
-          setToken(extractedToken);
+          await setToken(extractedToken);
         }
 
         setLoading(false);
         if (mode === 'register') {
-          navigation.navigate('RolePicker');
+          navigation.replace('RolePicker', { token: extractedToken });
         } else {
-          navigation.navigate('PINSetup');
+          navigation.replace('PINSetup');
         }
       } else {
         let fallbackMsg = "Verification failed. Please try again later.";
@@ -228,7 +243,10 @@ export const OTPScreen: React.FC<Props> = ({ navigation, route }) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <Header title="Verify OTP" onBack={() => navigation.goBack()} />
+      <Header
+        title="Verify OTP"
+        onBack={() => navigation.reset({ index: 0, routes: [{ name: 'PublicLanding' }] })}
+      />
       <View style={styles.body}>
         <Text style={styles.title}>OTP sent to</Text>
         <Text style={styles.phone}>+91 {phone ?? '***** *****'}</Text>
@@ -276,6 +294,13 @@ export const OTPScreen: React.FC<Props> = ({ navigation, route }) => {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.center} disabled={loading}>
           <Text style={styles.link}>Change number</Text>
         </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => navigation.reset({ index: 0, routes: [{ name: 'PublicLanding' }] })}
+          style={styles.homeLink}
+          disabled={loading}
+        >
+          <Text style={styles.homeLinkText}>🏠 Go to Home Marketplace</Text>
+        </TouchableOpacity>
       </View>
     </SafeAreaView>
   );
@@ -300,6 +325,8 @@ const styles = StyleSheet.create({
   link: { color: T.text2, fontSize: 14 },
   resend: { color: T.amber, fontSize: 14, fontWeight: '700' },
   center: { alignItems: 'center' },
+  homeLink: { marginTop: 12, paddingVertical: 8, paddingHorizontal: 16, backgroundColor: `${T.navy}08`, borderRadius: 12, borderWidth: 1, borderColor: `${T.navy}15` },
+  homeLinkText: { color: T.navy, fontSize: 13, fontWeight: '700' },
   apiEditLabel: { fontSize: 11, fontWeight: '700', color: T.text2, marginTop: 4, textTransform: 'uppercase', textAlign: 'center' },
   apiEditRow: { flexDirection: 'row', gap: 8, alignItems: 'center', width: '100%', paddingHorizontal: 10 },
   apiInput: { flex: 1, height: 36, backgroundColor: T.card, borderRadius: 8, borderWidth: 1, borderColor: '#ffc1bd', paddingHorizontal: 10, fontSize: 12, color: T.text1 },

@@ -60,7 +60,7 @@ export type RootStackParams = {
   OTP: { phone: string; mode?: 'login' | 'register'; sentOtp?: string };
   PINSetup: undefined;
   PINLogin: undefined;
-  RolePicker: undefined;
+  RolePicker: { token?: string } | undefined;
   AccountType: undefined;
   PersonalDetails: undefined;
   Products: undefined;

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -12,9 +13,31 @@ import { useAppStore } from '../../store/appStore';
 
 type Props = NativeStackScreenProps<RootStackParams, 'RolePicker'>;
 
-export const RolePickerScreen: React.FC<Props> = ({ navigation }) => {
+const getApiUrl = (endpoint: string, base: string) => {
+  let resolvedBase = base.trim();
+  if (resolvedBase.endsWith('/')) {
+    resolvedBase = resolvedBase.slice(0, -1);
+  }
+  let cleanEndpoint = endpoint;
+  if (!cleanEndpoint.startsWith('/')) {
+    cleanEndpoint = `/${cleanEndpoint}`;
+  }
+  if (Platform.OS === 'android') {
+    if (resolvedBase.includes('localhost')) {
+      resolvedBase = resolvedBase.replace('localhost', '10.0.2.2');
+    } else if (resolvedBase.includes('127.0.0.1')) {
+      resolvedBase = resolvedBase.replace('127.0.0.1', '10.0.2.2');
+    }
+  }
+  return `${resolvedBase}${cleanEndpoint}`;
+};
+
+export const RolePickerScreen: React.FC<Props> = ({ navigation, route }) => {
   const [selected, setSelected] = useState<'seller' | 'buyer' | null>(null);
-  const { setRole } = useAppStore();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const { setRole, token: storeToken, apiBaseUrl } = useAppStore();
+  const tokenFromParams = route.params?.token;
 
   const options = [
     {
@@ -43,12 +66,59 @@ export const RolePickerScreen: React.FC<Props> = ({ navigation }) => {
     },
   ];
 
+  const handleContinue = async () => {
+    if (!selected) return;
+    setRole(selected);
+
+    const formattedRole = selected === 'seller' ? 'Seller' : 'Buyer';
+    setLoading(true);
+    setError('');
+
+    const targetUrl = getApiUrl('/api/v1/registration/role', apiBaseUrl);
+    const activeToken = tokenFromParams || storeToken || (await AsyncStorage.getItem('sm_auth_token'));
+    console.log(`Submitting registration role (${formattedRole}) to ${targetUrl} with token:`, activeToken);
+
+    try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (activeToken) {
+        headers['Authorization'] = activeToken.startsWith('Bearer ') ? activeToken : `Bearer ${activeToken}`;
+      }
+
+      const response = await fetch(targetUrl, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({
+          role: formattedRole,
+          Role: formattedRole,
+        }),
+      });
+
+      setLoading(false);
+      if (response.ok || response.status === 200 || response.status === 204) {
+        navigation.navigate('AccountType');
+      } else {
+        console.warn('Role registration API status:', response.status);
+        // Continue wizard navigation so user is not blocked
+        navigation.navigate('AccountType');
+      }
+    } catch (err) {
+      console.warn('Error calling registration role PUT API:', err);
+      setLoading(false);
+      navigation.navigate('AccountType');
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       {/* Top Hero Banner Header */}
       <LinearGradient colors={['#F8FAFC', '#FFFFFF']} style={styles.topHeader}>
         <View style={styles.headerRow}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backCircleBtn}>
+          <TouchableOpacity
+            onPress={() => navigation.reset({ index: 0, routes: [{ name: 'PublicLanding' }] })}
+            style={styles.backCircleBtn}
+          >
             <Icon name="chevronL" size={16} color={T.navy} />
           </TouchableOpacity>
           <Logo width={120} dark />
@@ -116,12 +186,18 @@ export const RolePickerScreen: React.FC<Props> = ({ navigation }) => {
       {/* Bottom Fixed Action Footer */}
       <View style={styles.footer}>
         <Button
-          label="Continue to Account Type →"
-          onPress={selected ? () => { setRole(selected); navigation.navigate('AccountType'); } : undefined}
-          disabled={!selected}
+          label={loading ? "Saving Role..." : "Continue to Account Type →"}
+          onPress={selected && !loading ? handleContinue : undefined}
+          disabled={!selected || loading}
           fullWidth
           style={styles.continueBtn}
         />
+        <TouchableOpacity
+          onPress={() => navigation.reset({ index: 0, routes: [{ name: 'PublicLanding' }] })}
+          style={styles.homeLinkBtn}
+        >
+          <Text style={styles.homeLinkText}>🏠 Go to Home Marketplace</Text>
+        </TouchableOpacity>
       </View>
     </SafeAreaView>
   );
@@ -178,6 +254,8 @@ const styles = StyleSheet.create({
   bulletRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   bulletText: { fontSize: 12, color: T.text2, fontWeight: '600', flex: 1 },
 
-  footer: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: T.card, padding: 16, borderTopWidth: 1, borderTopColor: T.hairline, ...T.shadowSoft },
+  footer: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: T.card, padding: 16, borderTopWidth: 1, borderTopColor: T.hairline, gap: 10, alignItems: 'center', ...T.shadowSoft },
   continueBtn: { height: 52, borderRadius: 14, backgroundColor: T.amber },
+  homeLinkBtn: { paddingVertical: 4, paddingHorizontal: 12 },
+  homeLinkText: { color: T.navy, fontSize: 13, fontWeight: '700' },
 });
