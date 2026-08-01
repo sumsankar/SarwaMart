@@ -66,7 +66,7 @@ const getErrorMessage = async (response: Response, defaultMsg: string): Promise<
 
 export const OTPScreen: React.FC<Props> = ({ navigation, route }) => {
   const { phone, mode } = route.params ?? { phone: '', mode: 'login' };
-  const { apiBaseUrl } = useAppStore();
+  const { apiBaseUrl, setToken } = useAppStore();
 
   const [otp, setOtp] = useState('');
   const [loading, setLoading] = useState(false);
@@ -112,6 +112,41 @@ export const OTPScreen: React.FC<Props> = ({ navigation, route }) => {
       });
 
       if (response.ok) {
+        let extractedToken = '';
+        try {
+          const text = await response.text();
+          if (text) {
+            try {
+              const json = JSON.parse(text);
+              extractedToken =
+                json.token ||
+                json.accessToken ||
+                json.jwt ||
+                json.jwtToken ||
+                json.authToken ||
+                json.value ||
+                json.data?.token ||
+                json.data?.accessToken ||
+                json.data?.jwt ||
+                json.result?.token ||
+                json.result?.accessToken ||
+                '';
+            } catch {
+              const trimmed = text.trim();
+              if (trimmed.length > 15) {
+                extractedToken = trimmed;
+              }
+            }
+          }
+        } catch (e) {
+          console.warn('Could not parse verify OTP response body:', e);
+        }
+
+        if (extractedToken) {
+          console.log('Saved authentication token:', extractedToken);
+          setToken(extractedToken);
+        }
+
         setLoading(false);
         if (mode === 'register') {
           navigation.navigate('RolePicker');

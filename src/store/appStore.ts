@@ -7,12 +7,15 @@ type Role = 'seller' | 'buyer';
 interface AppState {
   role: Role;
   isLoggedIn: boolean;
+  token: string | null;
   selectedItem: any;
   selectedRequest: any;
   toast: { msg: string; visible: boolean; type: 'success' | 'error' | 'info' };
   apiBaseUrl: string;
   setRole: (role: Role) => void;
   setLoggedIn: (val: boolean) => void;
+  setToken: (token: string | null) => void;
+  loadToken: () => Promise<void>;
   setSelectedItem: (item: any) => void;
   setSelectedRequest: (req: any) => void;
   showToast: (msg: string, type?: 'success' | 'error' | 'info') => void;
@@ -27,6 +30,7 @@ const DEFAULT_API_BASE = 'https://sarwamart-api-g3bhexcsggetc4eu.canadacentral-0
 export const useAppStore = create<AppState>((set) => ({
   role: 'seller',
   isLoggedIn: false,
+  token: null,
   selectedItem: null,
   selectedRequest: null,
   toast: { msg: '', visible: false, type: 'success' },
@@ -40,6 +44,22 @@ export const useAppStore = create<AppState>((set) => ({
   setLoggedIn: (val) => {
     set({ isLoggedIn: val });
     AsyncStorage.setItem('sm_logged_in', val ? '1' : '0');
+  },
+
+  setToken: (token) => {
+    set({ token });
+    if (token) {
+      AsyncStorage.setItem('sm_auth_token', token);
+    } else {
+      AsyncStorage.removeItem('sm_auth_token');
+    }
+  },
+
+  loadToken: async () => {
+    const savedToken = await AsyncStorage.getItem('sm_auth_token');
+    if (savedToken) {
+      set({ token: savedToken });
+    }
   },
 
   setSelectedItem: (item) => set({ selectedItem: item }),
@@ -60,7 +80,6 @@ export const useAppStore = create<AppState>((set) => ({
   loadApiBaseUrl: async () => {
     const saved = await AsyncStorage.getItem('sm_api_base');
     if (saved) {
-      // Migrate to the new azure websites URL if it was previously pointing to localhost/10.0.2.2/etc.
       if (
         saved === 'https://localhost:7096' ||
         saved === 'https://10.0.2.2:7096' ||
@@ -82,6 +101,7 @@ export const useAppStore = create<AppState>((set) => ({
   logout: async () => {
     await AsyncStorage.removeItem('sm_role');
     await AsyncStorage.removeItem('sm_logged_in');
-    set({ isLoggedIn: false, role: 'seller' });
+    await AsyncStorage.removeItem('sm_auth_token');
+    set({ isLoggedIn: false, role: 'seller', token: null });
   },
 }));

@@ -13,6 +13,7 @@ export const SplashScreen: React.FC<Props> = ({ navigation }) => {
   const opacity = new Animated.Value(0);
   const scale = new Animated.Value(0.8);
   const loadApiBaseUrl = useAppStore(state => state.loadApiBaseUrl);
+  const loadToken = useAppStore(state => state.loadToken);
 
   useEffect(() => {
     Animated.parallel([
@@ -21,6 +22,7 @@ export const SplashScreen: React.FC<Props> = ({ navigation }) => {
     ]).start();
 
     loadApiBaseUrl();
+    loadToken();
 
     const t = setTimeout(() => navigation.replace('PublicLanding'), 2000);
     return () => clearTimeout(t);
