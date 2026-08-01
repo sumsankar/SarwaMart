@@ -21,6 +21,7 @@ import { AccountTypeScreen } from '../screens/registration/AccountTypeScreen';
 import { PersonalDetailsScreen } from '../screens/registration/PersonalDetailsScreen';
 import { BranchPickerScreen } from '../screens/registration/BranchPickerScreen';
 import { ProductsScreen } from '../screens/registration/ProductsScreen';
+import { RegistrationPreviewScreen } from '../screens/registration/RegistrationPreviewScreen';
 import { UnderReviewScreen } from '../screens/registration/UnderReviewScreen';
 
 // Public
@@ -66,6 +67,7 @@ export type RootStackParams = {
   PersonalDetails: { token?: string } | undefined;
   BranchPicker: { token?: string } | undefined;
   Products: { token?: string } | undefined;
+  RegistrationPreview: { token?: string } | undefined;
   UnderReview: undefined;
   SellerTabs: undefined;
   BuyerTabs: undefined;
@@ -150,6 +152,7 @@ export const RootNavigator = () => (
       <Stack.Screen name="PersonalDetails" component={PersonalDetailsScreen} />
       <Stack.Screen name="BranchPicker" component={BranchPickerScreen} />
       <Stack.Screen name="Products" component={ProductsScreen} />
+      <Stack.Screen name="RegistrationPreview" component={RegistrationPreviewScreen} />
       <Stack.Screen name="UnderReview" component={UnderReviewScreen} />
       <Stack.Screen name="SellerTabs" component={SellerTabNavigator} />
       <Stack.Screen name="BuyerTabs" component={BuyerTabNavigator} />

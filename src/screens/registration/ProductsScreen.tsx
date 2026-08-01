@@ -266,15 +266,15 @@ export const ProductsScreen: React.FC<Props> = ({ navigation, route }) => {
 
       setLoading(false);
       if (response.ok || response.status === 200 || response.status === 204) {
-        navigation.navigate('UnderReview');
+        navigation.navigate('RegistrationPreview', { token: activeToken });
       } else {
         console.warn('Products registration API status:', response.status);
-        navigation.navigate('UnderReview');
+        navigation.navigate('RegistrationPreview', { token: activeToken });
       }
     } catch (err) {
       console.warn('Error calling registration products PUT API:', err);
       setLoading(false);
-      navigation.navigate('UnderReview');
+      navigation.navigate('RegistrationPreview', { token: activeToken });
     }
   };
 
@@ -288,11 +288,11 @@ export const ProductsScreen: React.FC<Props> = ({ navigation, route }) => {
           </TouchableOpacity>
           <Logo width={120} dark />
           <View style={styles.stepPill}>
-            <Text style={styles.stepPillText}>Step 5 of 5</Text>
+            <Text style={styles.stepPillText}>Step 5 of 6</Text>
           </View>
         </View>
         <View style={styles.progressTrack}>
-          <View style={[styles.progressFill, { width: '100%' }]} />
+          <View style={[styles.progressFill, { width: '83%' }]} />
         </View>
       </LinearGradient>
 
@@ -429,7 +429,7 @@ export const ProductsScreen: React.FC<Props> = ({ navigation, route }) => {
       {/* Bottom Fixed Action Footer */}
       <View style={styles.footer}>
         <Button
-          label={loading ? "Submitting Application..." : "Submit Application for Review →"}
+          label={loading ? "Saving Products..." : "Save & Preview Application →"}
           onPress={selectedCatIds.length > 0 && !loading ? handleContinue : undefined}
           disabled={selectedCatIds.length === 0 || loading}
           fullWidth

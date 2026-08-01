@@ -208,11 +208,11 @@ export const BranchPickerScreen: React.FC<Props> = ({ navigation, route }) => {
           </TouchableOpacity>
           <Logo width={120} dark />
           <View style={styles.stepPill}>
-            <Text style={styles.stepPillText}>Step 4 of 5</Text>
+            <Text style={styles.stepPillText}>Step 4 of 6</Text>
           </View>
         </View>
         <View style={styles.progressTrack}>
-          <View style={[styles.progressFill, { width: '80%' }]} />
+          <View style={[styles.progressFill, { width: '66%' }]} />
         </View>
       </LinearGradient>
 

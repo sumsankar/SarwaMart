@@ -211,11 +211,11 @@ export const PersonalDetailsScreen: React.FC<Props> = ({ navigation, route }) =>
           </TouchableOpacity>
           <Logo width={120} dark />
           <View style={styles.stepPill}>
-            <Text style={styles.stepPillText}>Step 3 of 5</Text>
+            <Text style={styles.stepPillText}>Step 3 of 6</Text>
           </View>
         </View>
         <View style={styles.progressTrack}>
-          <View style={[styles.progressFill, { width: '60%' }]} />
+          <View style={[styles.progressFill, { width: '50%' }]} />
         </View>
       </LinearGradient>
 
