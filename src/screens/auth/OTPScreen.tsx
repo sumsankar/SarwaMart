@@ -163,11 +163,7 @@ export const OTPScreen: React.FC<Props> = ({ navigation, route }) => {
         }
 
         setLoading(false);
-        if (mode === 'register') {
-          navigation.replace('RolePicker', { token: extractedToken });
-        } else {
-          navigation.replace('PINSetup');
-        }
+        navigation.replace('PINSetup', { token: extractedToken, mode });
       } else {
         let fallbackMsg = "Verification failed. Please try again later.";
         if (response.status === 400 || response.status === 422) {

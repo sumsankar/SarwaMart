@@ -267,6 +267,29 @@ export const PersonalDetailsScreen: React.FC<Props> = ({ navigation, route }) =>
                   </Text>
                   <Icon name="chevronR" size={16} color={T.navy} />
                 </TouchableOpacity>
+
+                {/* Quick Select Chips for Major Aqua States */}
+                <Text style={styles.chipHint}>Quick Select Major Aqua Hubs:</Text>
+                <View style={styles.chipsRow}>
+                  {statesList.slice(0, 8).map(s => {
+                    const isSelected = form.state === s.name;
+                    return (
+                      <TouchableOpacity
+                        key={s.name}
+                        onPress={() => {
+                          set('state', s.name);
+                          if (s.id) set('stateId', s.id);
+                        }}
+                        style={[styles.stateChip, isSelected && styles.stateChipSelected]}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={[styles.stateChipText, isSelected && styles.stateChipTextSelected]}>
+                          {s.name}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
               </View>
 
               {/* City */}
@@ -321,6 +344,44 @@ export const PersonalDetailsScreen: React.FC<Props> = ({ navigation, route }) =>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
+
+      {/* State Picker Modal */}
+      <Modal visible={stateModalVisible} animationType="slide" transparent={true} onRequestClose={() => setStateModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select State / Region</Text>
+              <TouchableOpacity onPress={() => setStateModalVisible(false)} style={styles.closeBtn}>
+                <Text style={styles.closeBtnText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            {loadingStates ? (
+              <ActivityIndicator size="large" color={T.navy} style={{ marginVertical: 30 }} />
+            ) : (
+              <FlatList
+                data={statesList}
+                keyExtractor={(item, idx) => item.id || item.name || idx.toString()}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    style={[styles.stateItem, form.state === item.name && styles.stateItemSelected]}
+                    onPress={() => {
+                      set('state', item.name);
+                      if (item.id) set('stateId', item.id);
+                      setStateModalVisible(false);
+                    }}
+                  >
+                    <Text style={[styles.stateItemText, form.state === item.name && styles.stateItemTextSelected]}>
+                      {item.name}
+                    </Text>
+                    {form.state === item.name && <Text style={styles.checkmarkText}>✓</Text>}
+                  </TouchableOpacity>
+                )}
+              />
+            )}
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -351,7 +412,7 @@ const styles = StyleSheet.create({
     ...T.shadowSoft,
   },
 
-  dropdownField: { gap: 6 },
+  dropdownField: { gap: 8 },
   dropdownLabel: { fontSize: 13, fontWeight: '700', color: T.text1 },
   dropdownButton: {
     height: 48,
@@ -367,6 +428,13 @@ const styles = StyleSheet.create({
   dropdownButtonSelected: { borderColor: T.navy, backgroundColor: '#FFFFFF' },
   dropdownValue: { fontSize: 14, color: T.text1, fontWeight: '600' },
   dropdownPlaceholder: { color: T.text3, fontWeight: '400' },
+
+  chipHint: { fontSize: 11, fontWeight: '700', color: T.text3, textTransform: 'uppercase', letterSpacing: 0.4, marginTop: 4 },
+  chipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  stateChip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, backgroundColor: '#F1F5F9', borderWidth: 1, borderColor: T.hairline },
+  stateChipSelected: { backgroundColor: `${T.navy}14`, borderColor: T.navy },
+  stateChipText: { fontSize: 12, fontWeight: '600', color: T.text2 },
+  stateChipTextSelected: { color: T.navy, fontWeight: '800' },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalContent: { backgroundColor: T.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '80%', padding: 20, gap: 14 },

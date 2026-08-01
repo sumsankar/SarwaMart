@@ -59,7 +59,7 @@ export type RootStackParams = {
   Login: undefined;
   MobileEntry: { mode?: 'login' | 'register' } | undefined;
   OTP: { phone: string; mode?: 'login' | 'register'; sentOtp?: string };
-  PINSetup: undefined;
+  PINSetup: { token?: string; mode?: 'login' | 'register' } | undefined;
   PINLogin: undefined;
   RolePicker: { token?: string } | undefined;
   AccountType: { token?: string } | undefined;
