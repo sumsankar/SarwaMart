@@ -61,7 +61,7 @@ export type RootStackParams = {
   PINSetup: undefined;
   PINLogin: undefined;
   RolePicker: { token?: string } | undefined;
-  AccountType: undefined;
+  AccountType: { token?: string } | undefined;
   PersonalDetails: undefined;
   Products: undefined;
   UnderReview: undefined;

@@ -75,7 +75,7 @@ export const RolePickerScreen: React.FC<Props> = ({ navigation, route }) => {
     setError('');
 
     const targetUrl = getApiUrl('/api/v1/registration/role', apiBaseUrl);
-    const activeToken = tokenFromParams || storeToken || (await AsyncStorage.getItem('sm_auth_token'));
+    const activeToken = tokenFromParams || storeToken || (await AsyncStorage.getItem('sm_auth_token')) || undefined;
     console.log(`Submitting registration role (${formattedRole}) to ${targetUrl} with token:`, activeToken);
 
     try {
@@ -97,16 +97,16 @@ export const RolePickerScreen: React.FC<Props> = ({ navigation, route }) => {
 
       setLoading(false);
       if (response.ok || response.status === 200 || response.status === 204) {
-        navigation.navigate('AccountType');
+        navigation.navigate('AccountType', { token: activeToken });
       } else {
         console.warn('Role registration API status:', response.status);
         // Continue wizard navigation so user is not blocked
-        navigation.navigate('AccountType');
+        navigation.navigate('AccountType', { token: activeToken });
       }
     } catch (err) {
       console.warn('Error calling registration role PUT API:', err);
       setLoading(false);
-      navigation.navigate('AccountType');
+      navigation.navigate('AccountType', { token: activeToken });
     }
   };
 

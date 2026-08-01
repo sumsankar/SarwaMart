@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -8,11 +9,35 @@ import { Logo } from '../../components/ui/Logo';
 import { Button } from '../../components/ui/Button';
 import { Icon } from '../../components/ui/Icon';
 import { T } from '../../constants/tokens';
+import { useAppStore } from '../../store/appStore';
 
 type Props = NativeStackScreenProps<RootStackParams, 'AccountType'>;
 
-export const AccountTypeScreen: React.FC<Props> = ({ navigation }) => {
+const getApiUrl = (endpoint: string, base: string) => {
+  let resolvedBase = base.trim();
+  if (resolvedBase.endsWith('/')) {
+    resolvedBase = resolvedBase.slice(0, -1);
+  }
+  let cleanEndpoint = endpoint;
+  if (!cleanEndpoint.startsWith('/')) {
+    cleanEndpoint = `/${cleanEndpoint}`;
+  }
+  if (Platform.OS === 'android') {
+    if (resolvedBase.includes('localhost')) {
+      resolvedBase = resolvedBase.replace('localhost', '10.0.2.2');
+    } else if (resolvedBase.includes('127.0.0.1')) {
+      resolvedBase = resolvedBase.replace('127.0.0.1', '10.0.2.2');
+    }
+  }
+  return `${resolvedBase}${cleanEndpoint}`;
+};
+
+export const AccountTypeScreen: React.FC<Props> = ({ navigation, route }) => {
   const [type, setType] = useState<'individual' | 'company' | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const { token: storeToken, apiBaseUrl } = useAppStore();
+  const tokenFromParams = route.params?.token;
 
   const options = [
     {
@@ -40,6 +65,48 @@ export const AccountTypeScreen: React.FC<Props> = ({ navigation }) => {
       ],
     },
   ];
+
+  const handleContinue = async () => {
+    if (!type) return;
+
+    const formattedAccountType = type === 'individual' ? 'Individual' : 'Business';
+    setLoading(true);
+    setError('');
+
+    const targetUrl = getApiUrl('/api/v1/registration/account-type', apiBaseUrl);
+    const activeToken = tokenFromParams || storeToken || (await AsyncStorage.getItem('sm_auth_token')) || undefined;
+    console.log(`Submitting registration account-type (${formattedAccountType}) to ${targetUrl} with token:`, activeToken);
+
+    try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (activeToken) {
+        headers['Authorization'] = activeToken.startsWith('Bearer ') ? activeToken : `Bearer ${activeToken}`;
+      }
+
+      const response = await fetch(targetUrl, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({
+          accountType: formattedAccountType,
+          AccountType: formattedAccountType,
+        }),
+      });
+
+      setLoading(false);
+      if (response.ok || response.status === 200 || response.status === 204) {
+        navigation.navigate('PersonalDetails');
+      } else {
+        console.warn('Account type registration API status:', response.status);
+        navigation.navigate('PersonalDetails');
+      }
+    } catch (err) {
+      console.warn('Error calling registration account-type PUT API:', err);
+      setLoading(false);
+      navigation.navigate('PersonalDetails');
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -111,12 +178,18 @@ export const AccountTypeScreen: React.FC<Props> = ({ navigation }) => {
       {/* Bottom Fixed Action Footer */}
       <View style={styles.footer}>
         <Button
-          label="Continue to Personal Details →"
-          onPress={type ? () => navigation.navigate('PersonalDetails') : undefined}
-          disabled={!type}
+          label={loading ? "Saving Account Type..." : "Continue to Personal Details →"}
+          onPress={type && !loading ? handleContinue : undefined}
+          disabled={!type || loading}
           fullWidth
           style={styles.continueBtn}
         />
+        <TouchableOpacity
+          onPress={() => navigation.reset({ index: 0, routes: [{ name: 'PublicLanding' }] })}
+          style={styles.homeLinkBtn}
+        >
+          <Text style={styles.homeLinkText}>🏠 Go to Home Marketplace</Text>
+        </TouchableOpacity>
       </View>
     </SafeAreaView>
   );
@@ -173,6 +246,8 @@ const styles = StyleSheet.create({
   bulletRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   bulletText: { fontSize: 12, color: T.text2, fontWeight: '600', flex: 1 },
 
-  footer: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: T.card, padding: 16, borderTopWidth: 1, borderTopColor: T.hairline, ...T.shadowSoft },
+  footer: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: T.card, padding: 16, borderTopWidth: 1, borderTopColor: T.hairline, gap: 10, alignItems: 'center', ...T.shadowSoft },
   continueBtn: { height: 52, borderRadius: 14, backgroundColor: T.amber },
+  homeLinkBtn: { paddingVertical: 4, paddingHorizontal: 12 },
+  homeLinkText: { color: T.navy, fontSize: 13, fontWeight: '700' },
 });
