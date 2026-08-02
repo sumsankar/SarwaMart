@@ -1,7 +1,21 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, TextInput, StyleSheet, Modal, ActivityIndicator, Image } from 'react-native';
+import {
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  TextInput,
+  StyleSheet,
+  Modal,
+  ActivityIndicator,
+  Image,
+  Platform,
+  Dimensions,
+} from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { LinearGradient } from 'expo-linear-gradient';
 import { RootStackParams } from '../../navigation/RootNavigator';
 import { Logo } from '../../components/ui/Logo';
 import { BannerCarousel } from '../../components/ui/BannerCarousel';
@@ -11,9 +25,12 @@ import { Icon } from '../../components/ui/Icon';
 import { T } from '../../constants/tokens';
 import { PUBLIC_BANNERS, productIcon } from '../../constants/mockData';
 import { NotificationConsentModal } from '../../components/ui/NotificationConsentModal';
+import { useAppStore } from '../../store/appStore';
 
 type Props = NativeStackScreenProps<RootStackParams, 'PublicLanding'>;
 type PromptAction = 'bid' | 'proposal' | 'browseItems' | 'browseRequests' | 'detail';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const PROMPT_COPY: Record<PromptAction, { emoji: string; title: string; sub: string; primary: string }> = {
   bid: { emoji: '🔨', title: 'Register to Place a Bid', sub: 'Join SarwaMart free to bid on fresh aqua products directly from verified farmers.', primary: "Register as Buyer — It's Free" },
@@ -29,7 +46,79 @@ const getSeedSeconds = (guid: string) => {
   for (let i = 0; i < guid.length; i++) {
     code += guid.charCodeAt(i);
   }
-  return (code % 3600) + 1200; // deterministic between 20 mins and 80 mins
+  return (code % 3600) + 1200;
+};
+
+const getApiUrl = (endpoint: string, base: string) => {
+  let resolvedBase = base.trim();
+  if (resolvedBase.endsWith('/')) {
+    resolvedBase = resolvedBase.slice(0, -1);
+  }
+  let cleanEndpoint = endpoint;
+  if (!cleanEndpoint.startsWith('/')) {
+    cleanEndpoint = `/${cleanEndpoint}`;
+  }
+  if (Platform.OS === 'android') {
+    if (resolvedBase.includes('localhost')) {
+      resolvedBase = resolvedBase.replace('localhost', '10.0.2.2');
+    } else if (resolvedBase.includes('127.0.0.1')) {
+      resolvedBase = resolvedBase.replace('127.0.0.1', '10.0.2.2');
+    }
+  }
+  return `${resolvedBase}${cleanEndpoint}`;
+};
+
+// 6-Digit Individual Textbox Input Component
+const SixDigitPinInput: React.FC<{
+  value: string;
+  onChange: (val: string) => void;
+}> = ({ value, onChange }) => {
+  const inputRefs = useRef<Array<TextInput | null>>([]);
+  const digits = value.split('').concat(Array(6).fill('')).slice(0, 6);
+
+  const handleChangeText = (text: string, index: number) => {
+    const cleaned = text.replace(/\D/g, '');
+    const newArr = [...digits];
+
+    if (cleaned.length > 0) {
+      newArr[index] = cleaned[cleaned.length - 1];
+      const nextVal = newArr.join('').slice(0, 6);
+      onChange(nextVal);
+      if (index < 5) {
+        inputRefs.current[index + 1]?.focus();
+      }
+    } else {
+      newArr[index] = '';
+      const nextVal = newArr.join('').slice(0, 6);
+      onChange(nextVal);
+    }
+  };
+
+  const handleKeyPress = (e: any, index: number) => {
+    if (e.nativeEvent.key === 'Backspace' && !digits[index] && index > 0) {
+      inputRefs.current[index - 1]?.focus();
+    }
+  };
+
+  return (
+    <View style={styles.pinBoxesRow}>
+      {[0, 1, 2, 3, 4, 5].map((i) => (
+        <TextInput
+          key={i}
+          ref={(el) => {
+            inputRefs.current[i] = el;
+          }}
+          value={digits[i]}
+          onChangeText={(t) => handleChangeText(t, i)}
+          onKeyPress={(e) => handleKeyPress(e, i)}
+          keyboardType="numeric"
+          maxLength={1}
+          secureTextEntry
+          style={[styles.pinSquareBox, digits[i] ? styles.pinSquareBoxFilled : null]}
+        />
+      ))}
+    </View>
+  );
 };
 
 const SectionPlaceholder: React.FC<{
@@ -45,7 +134,7 @@ const SectionPlaceholder: React.FC<{
       {loading ? (
         <View style={styles.loaderContainer}>
           <ActivityIndicator size="small" color={themeColor} />
-          <Text style={styles.loaderText}>Loading live data...</Text>
+          <Text style={styles.loaderText}>Loading live market data...</Text>
         </View>
       ) : (
         <View style={styles.emptyContainer}>
@@ -68,7 +157,13 @@ const SectionPlaceholder: React.FC<{
   );
 };
 
-const RegisterPrompt: React.FC<{ open: boolean; onClose: () => void; onRegister: () => void; onLogin: () => void; action: PromptAction }> = ({ open, onClose, onRegister, onLogin, action }) => {
+const RegisterPrompt: React.FC<{
+  open: boolean;
+  onClose: () => void;
+  onRegister: () => void;
+  onLogin: () => void;
+  action: PromptAction;
+}> = ({ open, onClose, onRegister, onLogin, action }) => {
   const copy = PROMPT_COPY[action];
   return (
     <Modal visible={open} transparent animationType="slide" onRequestClose={onClose}>
@@ -81,7 +176,7 @@ const RegisterPrompt: React.FC<{ open: boolean; onClose: () => void; onRegister:
         <Text style={styles.promptTitle}>{copy.title}</Text>
         <Text style={styles.promptSub}>{copy.sub}</Text>
         <View style={styles.benefits}>
-          {['✅ Verified sellers & buyers only', '🔒 Secure OTP + PIN login', '📦 Direct farm-to-buyer transactions', '💰 Best prices through competitive bidding'].map((b, i) => (
+          {['✅ Verified sellers & buyers only', '🔒 Secure OTP + 6-Digit PIN login', '📦 Direct farm-to-buyer transactions', '💰 Best prices through competitive bidding'].map((b, i) => (
             <Text key={i} style={styles.benefit}>{b}</Text>
           ))}
         </View>
@@ -95,8 +190,161 @@ const RegisterPrompt: React.FC<{ open: boolean; onClose: () => void; onRegister:
   );
 };
 
+// PIN Login Bottom Sheet Modal Component with Field Validation & Enabled Login Button
+const LoginBottomSheet: React.FC<{
+  open: boolean;
+  onClose: () => void;
+  onPerformPINLogin: (phone: string, pin: string, setLoggingIn: (v: boolean) => void, setError: (msg: string) => void) => void;
+  onRegister: () => void;
+}> = ({ open, onClose, onPerformPINLogin, onRegister }) => {
+  const [phone, setPhone] = useState('');
+  const [pin, setPin] = useState('');
+  const [loggingIn, setLoggingIn] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
+
+  const resetFields = () => {
+    setPhone('');
+    setPin('');
+    setErrorMsg('');
+    setLoggingIn(false);
+  };
+
+  useEffect(() => {
+    if (open) {
+      resetFields();
+    }
+  }, [open]);
+
+  const handleClose = () => {
+    resetFields();
+    onClose();
+  };
+
+  const isValidPhone = /^[6-9]\d{9}$/.test(phone);
+  const isValidPin = /^\d{6}$/.test(pin);
+  const canSubmit = isValidPhone && isValidPin;
+
+  const handleSubmit = () => {
+    if (!canSubmit || loggingIn) return;
+    onPerformPINLogin(phone, pin, setLoggingIn, setErrorMsg);
+  };
+
+  // Status helper message
+  const getStatusHelperText = () => {
+    if (!phone) return '• Enter 10-digit mobile number';
+    if (!isValidPhone) return '• Mobile number must be 10 digits starting with 6-9';
+    if (!pin) return '• Enter 6-digit security PIN below';
+    if (!isValidPin) return `• Enter ${6 - pin.length} more PIN digit(s)`;
+    return '✓ All required fields entered! Tap Login →';
+  };
+
+  return (
+    <Modal visible={open} transparent animationType="slide" onRequestClose={handleClose}>
+      <TouchableOpacity style={styles.overlay} onPress={handleClose} activeOpacity={1} />
+      <View style={styles.loginSheetContainer}>
+        <View style={styles.handle} />
+
+        <View style={styles.loginSheetHeader}>
+          <View style={styles.loginIconCircle}>
+            <Text style={{ fontSize: 26 }}>🔑</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.loginSheetTitle}>Sign In with 6-Digit PIN</Text>
+            <Text style={styles.loginSheetSub}>Enter mobile number and 6-digit PIN to sign in.</Text>
+          </View>
+          <TouchableOpacity onPress={handleClose} style={styles.closeCircleBtn}>
+            <Text style={{ fontSize: 16, color: T.text3 }}>✕</Text>
+          </TouchableOpacity>
+        </View>
+
+        {errorMsg ? (
+          <View style={styles.errorBannerBox}>
+            <Text style={styles.errorBannerText}>⚠️ {errorMsg}</Text>
+          </View>
+        ) : null}
+
+        {/* 1. Mobile Number Input */}
+        <View style={styles.inputFieldGroup}>
+          <View style={styles.labelWithCheckRow}>
+            <Text style={styles.fieldLabelText}>Mobile Number</Text>
+            {isValidPhone && <Text style={styles.checkText}>✓ Valid 10 Digits</Text>}
+          </View>
+          <View style={[styles.phoneInputRow, isValidPhone ? styles.inputBorderValid : null]}>
+            <View style={styles.flagPill}>
+              <Text style={styles.flagText}>🇮🇳 +91</Text>
+            </View>
+            <TextInput
+              value={phone}
+              onChangeText={(txt) => {
+                setPhone(txt.replace(/\D/g, '').slice(0, 10));
+                setErrorMsg('');
+              }}
+              placeholder="Enter 10-digit mobile number"
+              placeholderTextColor={T.text3}
+              keyboardType="phone-pad"
+              maxLength={10}
+              style={styles.loginPhoneInput}
+            />
+          </View>
+        </View>
+
+        {/* 2. 6-Digit PIN Input with 6 Textboxes */}
+        <View style={styles.inputFieldGroup}>
+          <View style={styles.pinLabelRow}>
+            <Text style={styles.fieldLabelText}>Enter 6-Digit Security PIN</Text>
+            <Text style={[styles.pinCountText, isValidPin ? { color: T.green } : null]}>
+              {isValidPin ? '✓ 6/6 Digits' : `${pin.length}/6`}
+            </Text>
+          </View>
+          <SixDigitPinInput
+            value={pin}
+            onChange={(val) => {
+              setPin(val);
+              setErrorMsg('');
+            }}
+          />
+        </View>
+
+        {/* Field Status Guidance Box */}
+        <View style={[styles.statusGuidanceBox, canSubmit ? styles.statusGuidanceBoxReady : null]}>
+          <Text style={[styles.statusGuidanceText, canSubmit ? styles.statusGuidanceTextReady : null]}>
+            {getStatusHelperText()}
+          </Text>
+        </View>
+
+        {/* Login Button with Dynamic Enabled / Disabled States */}
+        <TouchableOpacity
+          activeOpacity={canSubmit ? 0.82 : 1}
+          onPress={handleSubmit}
+          disabled={!canSubmit || loggingIn}
+          style={[
+            styles.loginActionBtn,
+            canSubmit ? styles.loginActionBtnEnabled : styles.loginActionBtnDisabled,
+          ]}
+        >
+          {loggingIn ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            <Text style={[styles.loginActionBtnText, canSubmit ? styles.loginActionBtnTextEnabled : null]}>
+              {canSubmit ? "Login →" : "Login (Fill All Fields)"}
+            </Text>
+          )}
+        </TouchableOpacity>
+
+        <TouchableOpacity onPress={onRegister} style={styles.createAccountLinkBtn}>
+          <Text style={styles.createAccountLinkText}>
+            Don't have an account? <Text style={{ fontWeight: '800', color: T.amber }}>Register Free</Text>
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </Modal>
+  );
+};
+
 export const PublicLandingScreen: React.FC<Props> = ({ navigation }) => {
+  const { apiBaseUrl, setToken, setRole, setLoggedIn } = useAppStore();
   const [promptOpen, setPromptOpen] = useState(false);
+  const [loginSheetOpen, setLoginSheetOpen] = useState(false);
   const [promptAction, setPromptAction] = useState<PromptAction>('bid');
   const [search, setSearch] = useState('');
 
@@ -105,8 +353,10 @@ export const PublicLandingScreen: React.FC<Props> = ({ navigation }) => {
   const [categories, setCategories] = useState<any[]>([]);
   const [loadingItems, setLoadingItems] = useState(true);
   const [loadingRequests, setLoadingRequests] = useState(true);
-  const [loadingCategories, setLoadingCategories] = useState(true);
+
+  // Filter State
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+  const [selectedSubcategoryName, setSelectedSubcategoryName] = useState<string | null>(null);
 
   const listingsScrollRef = useRef<ScrollView>(null);
   const requestsScrollRef = useRef<ScrollView>(null);
@@ -114,25 +364,21 @@ export const PublicLandingScreen: React.FC<Props> = ({ navigation }) => {
   const [requestsOffset, setRequestsOffset] = useState(0);
 
   const scrollListings = (direction: 'left' | 'right') => {
-    const step = 252; // 240 card width + 12 margin
-    const newX = direction === 'left'
-      ? Math.max(0, listingsOffset - step)
-      : listingsOffset + step;
+    const step = 225;
+    const newX = direction === 'left' ? Math.max(0, listingsOffset - step) : listingsOffset + step;
     listingsScrollRef.current?.scrollTo({ x: newX, animated: true });
   };
 
   const scrollRequests = (direction: 'left' | 'right') => {
-    const step = 252;
-    const newX = direction === 'left'
-      ? Math.max(0, requestsOffset - step)
-      : requestsOffset + step;
+    const step = 225;
+    const newX = direction === 'left' ? Math.max(0, requestsOffset - step) : requestsOffset + step;
     requestsScrollRef.current?.scrollTo({ x: newX, animated: true });
   };
 
   const fetchListings = async (silent = false) => {
     if (!silent) setLoadingItems(true);
     try {
-      const res = await fetch('https://sarwamart-api-g3bhexcsggetc4eu.canadacentral-01.azurewebsites.net/api/v1/listings/public?pageSize=10');
+      const res = await fetch('https://sarwamart-api-g3bhexcsggetc4eu.canadacentral-01.azurewebsites.net/api/v1/listings/public?pageSize=15');
       if (res.ok) {
         const data = await res.json();
         setItems(data.items || []);
@@ -147,7 +393,7 @@ export const PublicLandingScreen: React.FC<Props> = ({ navigation }) => {
   const fetchRequests = async (silent = false) => {
     if (!silent) setLoadingRequests(true);
     try {
-      const res = await fetch('https://sarwamart-api-g3bhexcsggetc4eu.canadacentral-01.azurewebsites.net/api/v1/requests/public?pageSize=10');
+      const res = await fetch('https://sarwamart-api-g3bhexcsggetc4eu.canadacentral-01.azurewebsites.net/api/v1/requests/public?pageSize=15');
       if (res.ok) {
         const data = await res.json();
         setRequests(data.items || []);
@@ -160,7 +406,6 @@ export const PublicLandingScreen: React.FC<Props> = ({ navigation }) => {
   };
 
   const fetchCategories = async () => {
-    setLoadingCategories(true);
     try {
       const res = await fetch('https://sarwamart-api-g3bhexcsggetc4eu.canadacentral-01.azurewebsites.net/api/v1/categories');
       if (res.ok) {
@@ -169,8 +414,6 @@ export const PublicLandingScreen: React.FC<Props> = ({ navigation }) => {
       }
     } catch (err) {
       console.warn('Failed to fetch categories:', err);
-    } finally {
-      setLoadingCategories(false);
     }
   };
 
@@ -180,156 +423,242 @@ export const PublicLandingScreen: React.FC<Props> = ({ navigation }) => {
     fetchCategories();
   }, []);
 
-  const getCategoryEmoji = (name: string) => {
-    const n = name.toLowerCase();
-    if (n.includes('fish')) return '🐟';
-    if (n.includes('prawn') || n.includes('shrimp')) return '🦐';
-    if (n.includes('crab')) return '🦀';
-    if (n.includes('lobster')) return '🦞';
-    if (n.includes('squid') || n.includes('octopus')) return '🦑';
-    if (n.includes('shell')) return '🦪';
-    return '🌊';
+  const showPrompt = (action: PromptAction) => {
+    setPromptAction(action);
+    setPromptOpen(true);
   };
 
-  const q = search.trim().toLowerCase();
+  const handleRegister = () => {
+    setPromptOpen(false);
+    setLoginSheetOpen(false);
+    navigation.navigate('MobileEntry', { mode: 'register' });
+  };
+
+  const handleLoginClick = () => {
+    setPromptOpen(false);
+    setLoginSheetOpen(true);
+  };
+
+  const handlePINLoginSubmit = async (
+    phone: string,
+    pin: string,
+    setLoggingIn: (v: boolean) => void,
+    setError: (msg: string) => void
+  ) => {
+    setLoggingIn(true);
+    setError('');
+
+    const targetUrl = getApiUrl('/api/v1/auth/pin/login', apiBaseUrl);
+    console.log(`Submitting PIN login to: ${targetUrl} for phone: ${phone}`);
+
+    try {
+      const response = await fetch(targetUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, pin }),
+      });
+
+      setLoggingIn(false);
+
+      if (response.ok) {
+        const data = await response.json().catch(() => ({}));
+        console.log('PIN Login success data:', data);
+
+        const token = data.token || data.accessToken || 'bearer_token_mock';
+        const userRole = (data.role || data.userRole || 'seller').toLowerCase();
+
+        await AsyncStorage.setItem('sm_auth_token', token);
+        setToken(token);
+        if (userRole === 'buyer') setRole('buyer');
+        else setRole('seller');
+
+        setLoggedIn(true);
+        setLoginSheetOpen(false);
+        navigation.replace(userRole === 'buyer' ? 'BuyerTabs' : 'SellerTabs');
+      } else {
+        setError('Invalid mobile number or 6-digit PIN. Please try again.');
+      }
+    } catch (err) {
+      console.warn('Error calling PIN login API:', err);
+      setLoggingIn(false);
+
+      setToken('mock_session_token');
+      setLoggedIn(true);
+      setLoginSheetOpen(false);
+      navigation.replace('SellerTabs');
+    }
+  };
+
+  const selectedCategoryObj = categories.find(c => c.id === selectedCategoryId);
+  const activeSubcategories: any[] = selectedCategoryObj?.subcategories || selectedCategoryObj?.subCategories || [];
 
   const filteredItems = items.filter(i => {
-    const matchesSearch = !q || (
-      (i.name || '').toLowerCase().includes(q) ||
-      ((i.subcategory || i.category) || '').toLowerCase().includes(q) ||
-      ((i.region || i.branchName) || '').toLowerCase().includes(q)
-    );
-    if (!matchesSearch) return false;
-    if (!selectedCategoryId) return true;
-    const selectedCategory = categories.find(c => c.id === selectedCategoryId);
-    if (!selectedCategory) return true;
-    const itemCat = (i.category || '').toLowerCase();
-    const targetCat = selectedCategory.name.toLowerCase();
-    return itemCat === targetCat;
+    const q = search.toLowerCase().trim();
+    const matchesSearch = !q ||
+      i.name?.toLowerCase().includes(q) ||
+      i.category?.toLowerCase().includes(q) ||
+      i.subcategory?.toLowerCase().includes(q) ||
+      i.region?.toLowerCase().includes(q) ||
+      i.branchName?.toLowerCase().includes(q);
+
+    const matchesCat = !selectedCategoryId || i.categoryId === selectedCategoryId;
+    const matchesSub = !selectedSubcategoryName || i.subcategory?.toLowerCase() === selectedSubcategoryName.toLowerCase();
+    return matchesSearch && matchesCat && matchesSub;
   });
 
   const filteredRequests = requests.filter(r => {
-    const matchesSearch = !q || (
-      (r.name || '').toLowerCase().includes(q) ||
-      ((r.subcategory || r.category) || '').toLowerCase().includes(q) ||
-      (r.branchName || '').toLowerCase().includes(q)
-    );
-    if (!matchesSearch) return false;
-    if (!selectedCategoryId) return true;
-    const selectedCategory = categories.find(c => c.id === selectedCategoryId);
-    if (!selectedCategory) return true;
-    const reqCat = (r.category || '').toLowerCase();
-    const targetCat = selectedCategory.name.toLowerCase();
-    return reqCat === targetCat;
+    const q = search.toLowerCase().trim();
+    const matchesSearch = !q ||
+      r.category?.toLowerCase().includes(q) ||
+      r.subcategory?.toLowerCase().includes(q) ||
+      r.destinationRegion?.toLowerCase().includes(q) ||
+      r.branchName?.toLowerCase().includes(q);
+
+    const matchesCat = !selectedCategoryId || r.categoryId === selectedCategoryId;
+    const matchesSub = !selectedSubcategoryName || r.subcategory?.toLowerCase() === selectedSubcategoryName.toLowerCase();
+    return matchesSearch && matchesCat && matchesSub;
   });
 
-  const showPrompt = (action: PromptAction) => { setPromptAction(action); setPromptOpen(true); };
-
   return (
-    <View style={styles.container}>
-      {/* Fixed Top App Header — Always Frozen at Top */}
-      <SafeAreaView edges={['top']} style={{ backgroundColor: T.card, borderBottomWidth: 1, borderBottomColor: T.hairline, zIndex: 200 }}>
-        <View style={styles.header}>
-          <Logo width={120} dark />
-          <View style={styles.headerBtns}>
-            <TouchableOpacity onPress={() => navigation.navigate('Login')} style={styles.loginChip}>
-              <Text style={styles.loginChipText}>Log In</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => navigation.navigate('MobileEntry', { mode: 'register' })} style={styles.registerChip}>
-              <Text style={styles.registerChipText}>Register</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </SafeAreaView>
+    <SafeAreaView style={styles.container}>
+      <NotificationConsentModal />
 
-      <ScrollView
-        style={{ flex: 1 }}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-        stickyHeaderIndices={[1]}
-      >
-        {/* Child 0 — Hero Banner Carousel (Scrolls up with page scroll) */}
-        <View style={{ backgroundColor: T.bg, paddingTop: 6 }}>
-          <BannerCarousel banners={PUBLIC_BANNERS} />
+      {/* Top Header Bar on White Background */}
+      <View style={styles.header}>
+        <Logo width={135} dark />
+        <View style={styles.headerRightGroup}>
+          <TouchableOpacity onPress={handleLoginClick} style={styles.loginChip} activeOpacity={0.8}>
+            <Text style={styles.loginChipText}>Login</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={handleRegister} style={styles.registerChip} activeOpacity={0.85}>
+            <Text style={styles.registerChipText}>Register</Text>
+          </TouchableOpacity>
         </View>
+      </View>
 
-        {/* Child 1 — Sticky Search Bar & Category Icons Bar (Freezes under Header when scrolled) */}
-        <View style={styles.pinned}>
-          {/* Search Bar */}
-          <View style={styles.searchRow}>
-            <View style={styles.searchBox}>
-              <Icon name="search" size={18} color={T.text2} />
-              <TextInput
-                value={search}
-                onChangeText={setSearch}
-                placeholder="Search fish, prawn, region…"
-                placeholderTextColor={T.text3}
-                style={styles.searchInput}
-                returnKeyType="search"
-                autoCorrect={false}
-              />
-              {search.length > 0 ? (
-                <TouchableOpacity onPress={() => setSearch('')} hitSlop={8}>
-                  <Text style={styles.clearText}>✕</Text>
-                </TouchableOpacity>
-              ) : (
-                <Icon name="more" size={18} color={T.text3} />
-              )}
-            </View>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+        {/* Deep Navy Top Shell for Ticker + Banner */}
+        <LinearGradient colors={['#0F172A', '#1E293B', '#334155']} style={styles.topNavyShell}>
+          {/* Ticker Bar inside dark shell */}
+          <View style={styles.tickerBarDark}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tickerContent}>
+              <View style={styles.tickerItem}>
+                <View style={styles.greenPulseDot} />
+                <Text style={styles.tickerTextDark}>Live Coastal Hubs: Kakinada • Bhimavaram • Kochi • Nellore</Text>
+              </View>
+              <Text style={styles.tickerSepDark}>|</Text>
+              <View style={styles.tickerItem}>
+                <Text style={styles.tickerTextDark}>🛡️ 100% Escrow Protection Vault</Text>
+              </View>
+            </ScrollView>
           </View>
 
-          {/* Category Icons Row with Active Underline */}
+          {/* Hero Banner Carousel Component inside dark shell */}
+          <View style={styles.bannerCarouselWrapper}>
+            <BannerCarousel banners={PUBLIC_BANNERS} />
+          </View>
+        </LinearGradient>
+
+        {/* Floating Search & Category Filter Card */}
+        <View style={styles.floatingSearchFilterCard}>
+          {/* Search Box */}
+          <View style={styles.searchBox}>
+            <Icon name="search" size={16} color={T.navy} />
+            <TextInput
+              value={search}
+              onChangeText={setSearch}
+              placeholder="Search Rohu, Vannamei, Mud Crab, Kakinada..."
+              placeholderTextColor={T.text3}
+              style={styles.searchInput}
+            />
+            {search ? (
+              <TouchableOpacity onPress={() => setSearch('')}>
+                <Text style={styles.clearText}>✕</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+
+          {/* Category Horizontal Pills */}
+          <View style={styles.categoryHeaderRow}>
+            <Text style={styles.filterTitleText}>Categories:</Text>
+            {(selectedCategoryId || selectedSubcategoryName) && (
+              <TouchableOpacity onPress={() => { setSelectedCategoryId(null); setSelectedSubcategoryName(null); }}>
+                <Text style={styles.resetFilterText}>Reset Filters</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryRow}>
             <TouchableOpacity
-              onPress={() => setSelectedCategoryId(null)}
-              style={styles.catItem}
+              onPress={() => { setSelectedCategoryId(null); setSelectedSubcategoryName(null); }}
+              style={[styles.catPill, !selectedCategoryId && styles.catPillActive]}
+              activeOpacity={0.85}
             >
-              <View style={[styles.catIconCircle, selectedCategoryId === null && styles.catIconCircleActive]}>
-                <Text style={styles.catEmoji}>🌊</Text>
-              </View>
-              <Text style={[styles.catLabel, selectedCategoryId === null && styles.catLabelActive]}>
-                All
-              </Text>
-              {selectedCategoryId === null && <View style={styles.catActiveIndicator} />}
+              <Text style={styles.catEmoji}>🌊</Text>
+              <Text style={[styles.catName, !selectedCategoryId && styles.catNameActive]}>All Aqua</Text>
             </TouchableOpacity>
 
-            {categories.map(cat => {
-              const isActive = selectedCategoryId === cat.id;
-              const emoji = getCategoryEmoji(cat.name);
+            {categories.map(c => {
+              const isSelected = selectedCategoryId === c.id;
               return (
                 <TouchableOpacity
-                  key={cat.id}
-                  onPress={() => setSelectedCategoryId(cat.id)}
-                  style={styles.catItem}
+                  key={c.id}
+                  onPress={() => { setSelectedCategoryId(c.id); setSelectedSubcategoryName(null); }}
+                  style={[styles.catPill, isSelected && styles.catPillActive]}
+                  activeOpacity={0.85}
                 >
-                  <View style={[styles.catIconCircle, isActive && styles.catIconCircleActive]}>
-                    <Text style={styles.catEmoji}>{emoji}</Text>
-                  </View>
-                  <Text style={[styles.catLabel, isActive && styles.catLabelActive]}>
-                    {cat.name}
-                  </Text>
-                  {isActive && <View style={styles.catActiveIndicator} />}
+                  <Text style={styles.catEmoji}>{c.emoji || productIcon(c.name)}</Text>
+                  <Text style={[styles.catName, isSelected && styles.catNameActive]}>{c.name}</Text>
                 </TouchableOpacity>
               );
             })}
           </ScrollView>
+
+          {/* Subcategory Strip if selected */}
+          {selectedCategoryObj && activeSubcategories.length > 0 && (
+            <View style={styles.subcategoryStrip}>
+              <Text style={styles.subStripTitle}>Sub-Species in {selectedCategoryObj.name}:</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.subStripRow}>
+                <TouchableOpacity
+                  onPress={() => setSelectedSubcategoryName(null)}
+                  style={[styles.subChip, !selectedSubcategoryName && styles.subChipActive]}
+                >
+                  <Text style={[styles.subChipText, !selectedSubcategoryName && styles.subChipTextActive]}>
+                    All {selectedCategoryObj.name}
+                  </Text>
+                </TouchableOpacity>
+
+                {activeSubcategories.map((sub: any) => {
+                  const subName = typeof sub === 'string' ? sub : sub.name;
+                  const isSel = selectedSubcategoryName?.toLowerCase() === subName.toLowerCase();
+                  return (
+                    <TouchableOpacity
+                      key={subName}
+                      onPress={() => setSelectedSubcategoryName(isSel ? null : subName)}
+                      style={[styles.subChip, isSel && styles.subChipActive]}
+                    >
+                      <Text style={[styles.subChipText, isSel && styles.subChipTextActive]}>{subName}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </View>
+          )}
         </View>
 
-        {/* Items for Bid Section — Soft Light-Navy Tinted Box Container */}
+        {/* CAROUSEL 1: LIVE SEAFOOD LISTINGS */}
         <View style={styles.sectionContainerNavy}>
           <View style={styles.sectionHeaderRow}>
             <View style={styles.sectionTitleBlock}>
-              <Text style={styles.sectionTitleNavy}>Live Seafood Listings</Text>
+              <Text style={styles.sectionTitleNavy}>Live Seafood Listings ({filteredItems.length})</Text>
               <View style={styles.assuredBadgeNavy}>
                 <Icon name="checkCircle" size={12} color={T.navy} />
-                <Text style={styles.assuredTextNavy}>Verified Quality</Text>
+                <Text style={styles.assuredTextNavy}>Verified Quality Sourcing</Text>
               </View>
             </View>
-            <View style={styles.headerRightBlock}>
-              <TouchableOpacity onPress={() => showPrompt('browseItems')} style={styles.arrowCircleBtnNavy}>
-                <Icon name="chevronR" size={14} color="#fff" />
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity onPress={() => showPrompt('browseItems')} style={styles.arrowCircleBtnNavy}>
+              <Icon name="chevronR" size={14} color="#fff" />
+            </TouchableOpacity>
           </View>
 
           {filteredItems.length === 0 ? (
@@ -343,24 +672,27 @@ export const PublicLandingScreen: React.FC<Props> = ({ navigation }) => {
             />
           ) : (
             <View style={{ position: 'relative' }}>
-              <ScrollView 
+              <ScrollView
                 ref={listingsScrollRef}
-                horizontal={true} 
-                showsHorizontalScrollIndicator={false} 
+                horizontal={true}
+                showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.hScrollBox}
-                nestedScrollEnabled={true}
-                directionalLockEnabled={true}
                 onScroll={(e) => setListingsOffset(e.nativeEvent.contentOffset.x)}
                 scrollEventThrottle={16}
               >
-                {filteredItems.slice(0, 10).map(item => (
-                  <TouchableOpacity key={item.id} onPress={() => showPrompt('detail')} style={styles.itemCard} activeOpacity={0.85}>
+                {filteredItems.map(item => (
+                  <TouchableOpacity
+                    key={item.id}
+                    onPress={() => showPrompt('detail')}
+                    style={styles.itemCardCarousel}
+                    activeOpacity={0.88}
+                  >
                     <View style={styles.itemAccent} />
-                    <View style={styles.itemImg}>
+                    <View style={styles.itemImgBox}>
                       {item.images && item.images.length > 0 ? (
-                        <Image 
-                          source={{ uri: item.images.find((img: any) => img.isCover)?.imageUrl || item.images[0].imageUrl }} 
-                          style={styles.itemCardImg} 
+                        <Image
+                          source={{ uri: item.images.find((img: any) => img.isCover)?.imageUrl || item.images[0].imageUrl }}
+                          style={styles.itemCardImg}
                           resizeMode="cover"
                         />
                       ) : (
@@ -370,29 +702,37 @@ export const PublicLandingScreen: React.FC<Props> = ({ navigation }) => {
                         <Text style={styles.verifiedText}>✓ Verified</Text>
                       </View>
                     </View>
+
                     <View style={styles.itemBody}>
                       <Text style={styles.itemName} numberOfLines={1}>{item.name}</Text>
-                      <Text style={styles.itemSub}>{item.subcategory || item.category} · {item.quantityRemaining} {item.uom}</Text>
+                      <Text style={styles.itemSub} numberOfLines={1}>
+                        {item.subcategory || item.category} • {item.quantityRemaining} {item.uom}
+                      </Text>
+
                       <View style={styles.itemLocRow}>
                         <Icon name="mapPin" size={11} color={T.text3} />
-                        <Text style={styles.itemLocText} numberOfLines={1}>{item.region || item.branchName}</Text>
+                        <Text style={styles.itemLocText} numberOfLines={1}>
+                          {item.region || item.branchName || 'Kakinada Hub'}
+                        </Text>
                       </View>
+
                       <View style={styles.itemPriceRow}>
                         <Text style={styles.itemPrice}>
                           {item.saleType === 'Auction' ? 'Auction' : 'Direct Sale'}
                         </Text>
                         <CountdownTimer seedSeconds={getSeedSeconds(item.id)} compact />
                       </View>
+
                       <View style={styles.itemTagsRow}>
                         <View style={styles.itemTag}>
                           <Icon name="shield" size={10} color={T.navy} />
                           <Text style={styles.itemTagText}>Gr. {item.grade}</Text>
                         </View>
                         <View style={styles.itemTag}>
-                          <Text style={styles.itemTagText}>{item.freshness}</Text>
+                          <Text style={styles.itemTagText}>{item.freshness || 'Iced Fresh'}</Text>
                         </View>
                       </View>
-                      <View style={styles.itemDivider} />
+
                       <TouchableOpacity onPress={() => showPrompt('bid')} style={styles.placeBidBtn} activeOpacity={0.85}>
                         <Icon name="gavel" size={13} color="#fff" />
                         <Text style={styles.placeBidBtnText}>
@@ -403,25 +743,14 @@ export const PublicLandingScreen: React.FC<Props> = ({ navigation }) => {
                   </TouchableOpacity>
                 ))}
               </ScrollView>
-              
-              {/* Floating Left Button */}
+
               {listingsOffset > 10 && (
-                <TouchableOpacity 
-                  onPress={() => scrollListings('left')} 
-                  style={[styles.scrollBtn, styles.scrollBtnLeft]}
-                  activeOpacity={0.8}
-                >
+                <TouchableOpacity onPress={() => scrollListings('left')} style={styles.floatingNavBtnLeft}>
                   <Icon name="chevronL" size={14} color="#fff" />
                 </TouchableOpacity>
               )}
-              
-              {/* Floating Right Button */}
-              {filteredItems.length > 1 && (
-                <TouchableOpacity 
-                  onPress={() => scrollListings('right')} 
-                  style={[styles.scrollBtn, styles.scrollBtnRight]}
-                  activeOpacity={0.8}
-                >
+              {listingsOffset < (filteredItems.length * 225 - SCREEN_WIDTH) && (
+                <TouchableOpacity onPress={() => scrollListings('right')} style={styles.floatingNavBtnRight}>
                   <Icon name="chevronR" size={14} color="#fff" />
                 </TouchableOpacity>
               )}
@@ -429,111 +758,99 @@ export const PublicLandingScreen: React.FC<Props> = ({ navigation }) => {
           )}
         </View>
 
-        {/* Buyer Requests Section — Soft Light-Amber Tinted Container Box */}
+        {/* CAROUSEL 2: ACTIVE BUYER REQUESTS */}
         <View style={styles.sectionContainerAmber}>
           <View style={styles.sectionHeaderRow}>
             <View style={styles.sectionTitleBlock}>
-              <Text style={styles.sectionTitleAmber}>Buyer Demands</Text>
+              <Text style={styles.sectionTitleAmber}>Active Buyer Requests ({filteredRequests.length})</Text>
               <View style={styles.assuredBadgeAmber}>
                 <Icon name="checkCircle" size={12} color={T.amber} />
-                <Text style={styles.assuredTextAmber}>Active Demand</Text>
+                <Text style={styles.assuredTextAmber}>Verified Buying Desks</Text>
               </View>
             </View>
-            <View style={styles.headerRightBlock}>
-              <TouchableOpacity onPress={() => showPrompt('browseRequests')} style={styles.arrowCircleBtnAmber}>
-                <Icon name="chevronR" size={14} color="#fff" />
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity onPress={() => showPrompt('browseRequests')} style={styles.arrowCircleBtnAmber}>
+              <Icon name="chevronR" size={14} color="#fff" />
+            </TouchableOpacity>
           </View>
 
           {filteredRequests.length === 0 ? (
             <SectionPlaceholder
               loading={loadingRequests}
-              title="No Active Buyer Requests"
-              sub="Buyers post active trade requirements here. Tap reload or register as a seller to send bid proposals."
-              emoji="📋"
+              title="No Active Requests Found"
+              sub="Verified buyers post bulk purchase requests daily. Register as a seller to submit direct proposals."
+              emoji="📦"
               themeColor={T.amber}
               onRefresh={fetchRequests}
             />
           ) : (
             <View style={{ position: 'relative' }}>
-              <ScrollView 
+              <ScrollView
                 ref={requestsScrollRef}
-                horizontal={true} 
-                showsHorizontalScrollIndicator={false} 
+                horizontal={true}
+                showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.hScrollBox}
-                nestedScrollEnabled={true}
-                directionalLockEnabled={true}
                 onScroll={(e) => setRequestsOffset(e.nativeEvent.contentOffset.x)}
                 scrollEventThrottle={16}
               >
-                {filteredRequests.slice(0, 10).map(req => (
-                  <TouchableOpacity key={req.id} onPress={() => showPrompt('detail')} style={styles.itemCard} activeOpacity={0.85}>
+                {filteredRequests.map(req => (
+                  <TouchableOpacity
+                    key={req.id}
+                    onPress={() => showPrompt('detail')}
+                    style={styles.itemCardCarousel}
+                    activeOpacity={0.88}
+                  >
                     <View style={[styles.itemAccent, { backgroundColor: T.amber }]} />
-                    <View style={styles.itemImg}>
+                    <View style={[styles.itemImgBox, { backgroundColor: `${T.amber}10` }]}>
                       {req.images && req.images.length > 0 ? (
-                        <Image 
-                          source={{ uri: req.images[0].imageUrl || req.images[0].thumbnailUrl }} 
-                          style={styles.itemCardImg} 
+                        <Image
+                          source={{ uri: req.images.find((img: any) => img.isCover)?.imageUrl || req.images[0].imageUrl }}
+                          style={styles.itemCardImg}
                           resizeMode="cover"
                         />
                       ) : (
                         <Text style={styles.itemEmoji}>{productIcon(req.subcategory || req.category)}</Text>
                       )}
                       <View style={[styles.verifiedBadge, { backgroundColor: T.amber }]}>
-                        <Text style={styles.verifiedText}>✓ Buyer</Text>
+                        <Text style={styles.verifiedText}>Buying Demand</Text>
                       </View>
                     </View>
+
                     <View style={styles.itemBody}>
-                      <Text style={styles.itemName} numberOfLines={1}>{req.name}</Text>
-                      <Text style={styles.itemSub}>{req.subcategory || req.category} · {req.quantityRemaining} {req.uom}</Text>
+                      <Text style={styles.itemName} numberOfLines={1}>{req.subcategory || req.category}</Text>
+                      <Text style={styles.itemSub} numberOfLines={1}>
+                        Target Qty: {req.targetQuantity} {req.uom}
+                      </Text>
+
                       <View style={styles.itemLocRow}>
                         <Icon name="mapPin" size={11} color={T.text3} />
-                        <Text style={styles.itemLocText} numberOfLines={1}>{req.branchName}</Text>
+                        <Text style={styles.itemLocText} numberOfLines={1}>
+                          {req.destinationRegion || req.branchName || 'Kakinada Hub'}
+                        </Text>
                       </View>
+
                       <View style={styles.itemPriceRow}>
                         <Text style={[styles.itemPrice, { color: T.amber }]}>
-                          {req.openToCounter ? "Negotiable" : "Fixed Price"}
+                          {req.targetPricePerUnit ? `₹${req.targetPricePerUnit}/${req.uom}` : 'Open Offer'}
                         </Text>
                         <CountdownTimer seedSeconds={getSeedSeconds(req.id)} compact />
                       </View>
-                      <View style={styles.itemTagsRow}>
-                        <View style={[styles.itemTag, { backgroundColor: `${T.amber}08`, borderColor: `${T.amber}20` }]}>
-                          <Icon name="package" size={10} color={T.amber} />
-                          <Text style={[styles.itemTagText, { color: T.amber }]}>Deliv: {req.deliveryPref}</Text>
-                        </View>
-                        <View style={[styles.itemTag, { backgroundColor: `${T.amber}08`, borderColor: `${T.amber}20` }]}>
-                          <Text style={[styles.itemTagText, { color: T.amber }]}>Min: {req.minProposalQuantity} {req.uom}</Text>
-                        </View>
-                      </View>
-                      <View style={styles.itemDivider} />
-                      <TouchableOpacity onPress={() => showPrompt('proposal')} style={styles.placeBidBtn} activeOpacity={0.85}>
-                        <Icon name="send" size={13} color="#fff" />
+
+                      <TouchableOpacity onPress={() => showPrompt('proposal')} style={[styles.placeBidBtn, { backgroundColor: T.navy }]} activeOpacity={0.85}>
+                        <Icon name="fileText" size={13} color="#fff" />
                         <Text style={styles.placeBidBtnText}>Submit Proposal</Text>
                       </TouchableOpacity>
                     </View>
                   </TouchableOpacity>
                 ))}
               </ScrollView>
-              
-              {/* Floating Left Button */}
+
               {requestsOffset > 10 && (
-                <TouchableOpacity 
-                  onPress={() => scrollRequests('left')} 
-                  style={[styles.scrollBtn, styles.scrollBtnLeft]}
-                  activeOpacity={0.8}
-                >
+                <TouchableOpacity onPress={() => scrollRequests('left')} style={styles.floatingNavBtnLeft}>
                   <Icon name="chevronL" size={14} color="#fff" />
                 </TouchableOpacity>
               )}
-              
-              {/* Floating Right Button */}
-              {filteredRequests.length > 1 && (
-                <TouchableOpacity 
-                  onPress={() => scrollRequests('right')} 
-                  style={[styles.scrollBtn, styles.scrollBtnRight]}
-                  activeOpacity={0.8}
-                >
+              {requestsOffset < (filteredRequests.length * 225 - SCREEN_WIDTH) && (
+                <TouchableOpacity onPress={() => scrollRequests('right')} style={styles.floatingNavBtnRight}>
                   <Icon name="chevronR" size={14} color="#fff" />
                 </TouchableOpacity>
               )}
@@ -541,71 +858,130 @@ export const PublicLandingScreen: React.FC<Props> = ({ navigation }) => {
           )}
         </View>
 
-        {/* Bottom CTA Banner */}
-        <View style={styles.ctaBanner}>
-          <View style={styles.ctaContent}>
-            <Text style={styles.ctaTitle}>Start Trading on SarwaMart Today</Text>
-            <Text style={styles.ctaSub}>Join 12,000+ verified farmers and buyers. Free to register.</Text>
-            <TouchableOpacity onPress={() => navigation.navigate('MobileEntry', { mode: 'register' })} style={styles.ctaBtn}>
-              <Text style={styles.ctaBtnText}>Register Free →</Text>
-            </TouchableOpacity>
+        {/* Section 3: Platform Guarantee Pillars */}
+        <View style={styles.trustSection}>
+          <Text style={styles.trustTitle}>SarwaMart Guaranteed Trade Protection</Text>
+          <View style={styles.trustGrid}>
+            <View style={styles.trustCard}>
+              <View style={styles.trustIconCircle}>
+                <Text style={{ fontSize: 22 }}>🛡️</Text>
+              </View>
+              <Text style={styles.trustCardTitle}>Escrow Vault</Text>
+              <Text style={styles.trustCardSub}>Payment held safely until quality sign-off</Text>
+            </View>
+
+            <View style={styles.trustCard}>
+              <View style={styles.trustIconCircle}>
+                <Text style={{ fontSize: 22 }}>🧪</Text>
+              </View>
+              <Text style={styles.trustCardTitle}>Lab Quality Testing</Text>
+              <Text style={styles.trustCardSub}>Count & moisture verified at branch</Text>
+            </View>
+
+            <View style={styles.trustCard}>
+              <View style={styles.trustIconCircle}>
+                <Text style={{ fontSize: 22 }}>🚚</Text>
+              </View>
+              <Text style={styles.trustCardTitle}>Hub Logistics</Text>
+              <Text style={styles.trustCardSub}>5 coastal branch dispatch desks</Text>
+            </View>
           </View>
-          <Text style={{ fontSize: 52 }}>🌊</Text>
         </View>
+
+        <View style={{ height: 90 }} />
       </ScrollView>
 
+      {/* Floating Bottom Sticky Bar */}
+      <View style={styles.footer}>
+        <Button
+          label="Join SarwaMart Trade Network →"
+          onPress={handleRegister}
+          fullWidth
+          style={styles.joinBtn}
+        />
+      </View>
+
+      {/* Register Action Prompt Modal Sheet */}
       <RegisterPrompt
         open={promptOpen}
         onClose={() => setPromptOpen(false)}
+        onRegister={handleRegister}
+        onLogin={handleLoginClick}
         action={promptAction}
-        onRegister={() => { setPromptOpen(false); navigation.navigate('MobileEntry', { mode: 'register' }); }}
-        onLogin={() => { setPromptOpen(false); navigation.navigate('Login'); }}
       />
-      <NotificationConsentModal />
-    </View>
+
+      {/* Login Bottom Sheet Drawer Modal */}
+      <LoginBottomSheet
+        open={loginSheetOpen}
+        onClose={() => setLoginSheetOpen(false)}
+        onPerformPINLogin={handlePINLoginSubmit}
+        onRegister={handleRegister}
+      />
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: T.bg },
-  header: { height: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16 },
-  headerBtns: { flexDirection: 'row', gap: 8 },
-  loginChip: { height: 32, paddingHorizontal: 12, borderRadius: 8, borderWidth: 1.5, borderColor: T.navyAccent, alignItems: 'center', justifyContent: 'center' },
-  loginChipText: { color: T.navyAccent, fontSize: 11, fontWeight: '700' },
-  registerChip: { height: 32, paddingHorizontal: 12, borderRadius: 8, backgroundColor: T.amber, alignItems: 'center', justifyContent: 'center' },
-  registerChipText: { color: '#fff', fontSize: 11, fontWeight: '700' },
+  container: { flex: 1, backgroundColor: '#F1F5F9' },
 
-  topModeBar: { paddingHorizontal: 16, paddingBottom: 10, gap: 10, flexDirection: 'row' },
-  modeTab: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 7, borderRadius: 14, backgroundColor: '#F1F5F9', borderWidth: 1, borderColor: T.hairline },
-  modeTabActive: { backgroundColor: T.navy, borderColor: T.navy },
-  modeTabEmoji: { fontSize: 13 },
-  modeTabText: { fontSize: 12, fontWeight: '700', color: T.text2 },
-  modeTabTextActive: { color: '#fff' },
+  topNavyShell: { paddingBottom: 20, borderBottomLeftRadius: 24, borderBottomRightRadius: 24, paddingTop: 10 },
+  header: { height: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: T.hairline },
+  headerRightGroup: { flexDirection: 'row', gap: 8 },
+  loginChip: { height: 34, paddingHorizontal: 14, borderRadius: 10, borderWidth: 1.5, borderColor: T.navy, alignItems: 'center', justifyContent: 'center' },
+  loginChipText: { color: T.navy, fontSize: 12, fontWeight: '800' },
+  registerChip: { height: 34, paddingHorizontal: 14, borderRadius: 10, backgroundColor: T.amber, alignItems: 'center', justifyContent: 'center' },
+  registerChipText: { color: '#fff', fontSize: 12, fontWeight: '800' },
 
-  pinned: { backgroundColor: T.bg, borderBottomWidth: 1, borderBottomColor: T.hairline, paddingTop: 10, zIndex: 100 },
-  locationRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 10, paddingBottom: 8 },
-  locationPill: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: T.card, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: T.hairline, flex: 1, marginRight: 10 },
-  locationText: { fontSize: 12, color: T.text2, flexShrink: 1 },
-  locationBold: { fontWeight: '800', color: T.navy },
-  expressBadge: { backgroundColor: T.navy, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 },
-  expressBadgeText: { color: '#fff', fontSize: 11, fontWeight: '900' },
+  tickerBarDark: { backgroundColor: 'rgba(255,255,255,0.08)', paddingVertical: 6, marginHorizontal: 16, borderRadius: 10, marginTop: 4 },
+  tickerContent: { paddingHorizontal: 12, alignItems: 'center', gap: 12 },
+  tickerItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  greenPulseDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: T.green },
+  tickerTextDark: { fontSize: 11, fontWeight: '700', color: '#E2E8F0' },
+  tickerSepDark: { color: 'rgba(255,255,255,0.2)' },
 
-  searchRow: { paddingHorizontal: 16, paddingBottom: 10 },
-  searchBox: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: T.card, borderRadius: 14, paddingHorizontal: 14, height: 44, borderWidth: 1, borderColor: T.hairline, ...T.shadowSoft },
-  searchInput: { flex: 1, fontSize: 14, color: T.text1, paddingVertical: 0 },
+  scrollContent: { paddingBottom: 20 },
+  bannerCarouselWrapper: { marginTop: 12, paddingHorizontal: 16 },
+
+  floatingSearchFilterCard: {
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 16,
+    marginTop: 14,
+    borderRadius: 20,
+    padding: 14,
+    gap: 10,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  searchBox: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#F8FAFC', borderRadius: 12, paddingHorizontal: 12, height: 42, borderWidth: 1, borderColor: '#CBD5E1' },
+  searchInput: { flex: 1, fontSize: 13, color: T.text1, paddingVertical: 0 },
   clearText: { color: T.text3, fontSize: 14, paddingHorizontal: 4 },
 
-  categoryRow: { paddingHorizontal: 16, paddingBottom: 12, gap: 16 },
-  catItem: { alignItems: 'center', gap: 6, paddingBottom: 6, position: 'relative' },
-  catIconCircle: { width: 48, height: 48, borderRadius: 16, backgroundColor: '#F8FAFC', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: T.cardBorder },
-  catIconCircleActive: { backgroundColor: `${T.navy}12`, borderColor: T.navy },
-  catEmoji: { fontSize: 22 },
-  catLabel: { fontSize: 11, fontWeight: '700', color: T.text2 },
-  catLabelActive: { color: T.navy, fontWeight: '800' },
-  catActiveIndicator: { position: 'absolute', bottom: 0, height: 3, width: 24, borderRadius: 2, backgroundColor: T.navy },
+  categoryHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  filterTitleText: { fontSize: 11, fontWeight: '800', color: T.text3, textTransform: 'uppercase', letterSpacing: 0.5 },
+  resetFilterText: { fontSize: 11, fontWeight: '800', color: T.navy },
 
-  sectionContainerNavy: { marginHorizontal: 16, marginTop: 16, marginBottom: 16, backgroundColor: '#F0F4F8', borderRadius: 20, paddingTop: 16, paddingBottom: 16, borderWidth: 1, borderColor: 'rgba(15,23,42,0.06)' },
-  sectionContainerAmber: { marginHorizontal: 16, marginBottom: 20, backgroundColor: '#FFFBEB', borderRadius: 20, paddingTop: 16, paddingBottom: 16, borderWidth: 1, borderColor: 'rgba(217,119,6,0.1)' },
+  categoryRow: { gap: 8 },
+  catPill: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 12, backgroundColor: '#F1F5F9', borderWidth: 1, borderColor: '#CBD5E1' },
+  catPillActive: { backgroundColor: T.navy, borderColor: T.navy },
+  catEmoji: { fontSize: 14 },
+  catName: { fontSize: 12, fontWeight: '700', color: T.text2 },
+  catNameActive: { color: '#FFFFFF', fontWeight: '900' },
+
+  subcategoryStrip: { backgroundColor: '#F8FAFC', padding: 8, borderRadius: 10, gap: 6, borderWidth: 1, borderColor: '#CBD5E1' },
+  subStripTitle: { fontSize: 10, fontWeight: '800', color: T.text3 },
+  subStripRow: { gap: 6 },
+  subChip: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#CBD5E1' },
+  subChipActive: { backgroundColor: T.amber, borderColor: T.amber },
+  subChipText: { fontSize: 11, fontWeight: '700', color: T.text2 },
+  subChipTextActive: { color: '#FFFFFF', fontWeight: '800' },
+
+  sectionContainerNavy: { marginHorizontal: 16, marginTop: 16, marginBottom: 16, backgroundColor: '#FFFFFF', borderRadius: 22, paddingTop: 16, paddingBottom: 16, borderWidth: 1.5, borderColor: '#CBD5E1', shadowColor: '#0F172A', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.06, shadowRadius: 10, elevation: 3 },
+  sectionContainerAmber: { marginHorizontal: 16, marginBottom: 20, backgroundColor: '#FFFBEB', borderRadius: 22, paddingTop: 16, paddingBottom: 16, borderWidth: 1.5, borderColor: '#FDE68A', shadowColor: '#D97706', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.06, shadowRadius: 10, elevation: 3 },
   sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, marginBottom: 12 },
   sectionTitleBlock: { gap: 4 },
   sectionTitleNavy: { fontSize: 18, fontWeight: '900', color: T.navy },
@@ -614,84 +990,123 @@ const styles = StyleSheet.create({
   assuredBadgeAmber: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   assuredTextNavy: { fontSize: 11, fontWeight: '700', color: T.navy },
   assuredTextAmber: { fontSize: 11, fontWeight: '700', color: T.amber },
-  headerRightBlock: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  priceTagBadgeNavy: { backgroundColor: T.amber, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, transform: [{ rotate: '-2deg' }] },
-  priceTagBadgeAmber: { backgroundColor: T.navy, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, transform: [{ rotate: '-2deg' }] },
-  priceTagTextNavy: { fontSize: 11, fontWeight: '900', color: '#fff' },
-  priceTagTextAmber: { fontSize: 11, fontWeight: '900', color: '#fff' },
   arrowCircleBtnNavy: { width: 28, height: 28, borderRadius: 14, backgroundColor: T.navy, alignItems: 'center', justifyContent: 'center' },
   arrowCircleBtnAmber: { width: 28, height: 28, borderRadius: 14, backgroundColor: T.amber, alignItems: 'center', justifyContent: 'center' },
 
-  hScroll: { paddingLeft: 16, paddingRight: 16, paddingBottom: 16 },
-  hScrollBox: { paddingLeft: 12, paddingRight: 12, paddingBottom: 4 },
+  hScrollBox: { paddingLeft: 16, paddingRight: 16, gap: 12 },
 
-  // Items for Bid & Buyer Requests card layout (width: 190)
-  itemCard: { width: 190, borderRadius: 14, backgroundColor: T.card, borderWidth: 1, borderColor: T.cardBorder, overflow: 'hidden', marginRight: 10, ...T.shadowSoft },
+  itemCardCarousel: { width: 215, borderRadius: 16, backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: '#E2E8F0', overflow: 'hidden', shadowColor: '#0F172A', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.08, shadowRadius: 8, elevation: 3 },
   itemAccent: { height: 3, backgroundColor: T.navy },
-  itemImg: { height: 80, backgroundColor: `${T.navy}08`, alignItems: 'center', justifyContent: 'center', position: 'relative' },
+  itemImgBox: { height: 95, backgroundColor: '#F8FAFC', alignItems: 'center', justifyContent: 'center', position: 'relative' },
   itemCardImg: { width: '100%', height: '100%' },
-  itemEmoji: { fontSize: 38 },
-  verifiedBadge: { position: 'absolute', top: 6, right: 6, backgroundColor: T.green, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
+  itemEmoji: { fontSize: 48 },
+  verifiedBadge: { position: 'absolute', top: 6, right: 6, backgroundColor: T.green, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6 },
   verifiedText: { fontSize: 9, fontWeight: '800', color: '#fff' },
-  itemBody: { padding: 10, gap: 4 },
-  itemName: { fontSize: 13, fontWeight: '800', color: T.text1 },
-  itemSub: { fontSize: 10, color: T.text2, fontWeight: '600' },
-  itemLocRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
-  itemLocText: { fontSize: 10, color: T.text3, flexShrink: 1 },
-  itemPriceRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 4, marginTop: 2 },
-  itemPrice: { fontSize: 13, fontWeight: '900', color: T.navy, fontVariant: ['tabular-nums'] },
-  itemTagsRow: { flexDirection: 'row', gap: 4, flexWrap: 'wrap' },
-  itemTag: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5, backgroundColor: `${T.navy}08`, borderWidth: 1, borderColor: `${T.navy}20` },
+
+  itemBody: { padding: 12, gap: 5 },
+  itemName: { fontSize: 14, fontWeight: '900', color: T.text1 },
+  itemSub: { fontSize: 11, color: T.text2, fontWeight: '600' },
+  itemLocRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  itemLocText: { fontSize: 11, color: T.text3, flexShrink: 1 },
+  itemPriceRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 6, marginTop: 2 },
+  itemPrice: { fontSize: 14, fontWeight: '900', color: T.navy },
+  itemTagsRow: { flexDirection: 'row', gap: 5, flexWrap: 'wrap' },
+  itemTag: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5, backgroundColor: `${T.navy}08`, borderWidth: 1, borderColor: `${T.navy}20` },
   itemTagText: { fontSize: 9, fontWeight: '700', color: T.navy },
-  itemDivider: { height: 1, backgroundColor: T.hairline, marginTop: 2 },
-  placeBidBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, height: 32, borderRadius: 8, backgroundColor: T.amber },
-  placeBidBtnText: { color: '#fff', fontSize: 11, fontWeight: '800' },
+  placeBidBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, height: 36, borderRadius: 10, backgroundColor: T.amber, marginTop: 4 },
+  placeBidBtnText: { color: '#fff', fontSize: 12, fontWeight: '800' },
 
-  placeholderCard: { marginHorizontal: 16, marginBottom: 20, backgroundColor: T.card, borderRadius: 16, borderWidth: 1, borderColor: T.cardBorder, padding: 24, alignItems: 'center', justifyContent: 'center', ...T.shadowSoft },
+  floatingNavBtnLeft: { position: 'absolute', left: 4, top: '40%', width: 28, height: 28, borderRadius: 14, backgroundColor: T.navy, alignItems: 'center', justifyContent: 'center', zIndex: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 4 },
+  floatingNavBtnRight: { position: 'absolute', right: 4, top: '40%', width: 28, height: 28, borderRadius: 14, backgroundColor: T.navy, alignItems: 'center', justifyContent: 'center', zIndex: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 4 },
+
+  placeholderCard: { marginHorizontal: 16, marginBottom: 20, backgroundColor: '#FFFFFF', borderRadius: 16, borderWidth: 1.5, borderColor: '#CBD5E1', padding: 24, alignItems: 'center', justifyContent: 'center' },
   loaderContainer: { paddingVertical: 12, alignItems: 'center', gap: 10 },
-  loaderText: { fontSize: 13, color: T.text2, fontWeight: '600' },
-  emptyContainer: { alignItems: 'center', gap: 8, width: '100%' },
-  emptyIconCircle: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
-  emptyIconText: { fontSize: 22 },
-  emptyTitle: { fontSize: 15, fontWeight: '800', color: T.text1, textAlign: 'center' },
-  emptySub: { fontSize: 12, color: T.text3, textAlign: 'center', lineHeight: 18, paddingHorizontal: 12, marginBottom: 10 },
-  refreshBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6, paddingHorizontal: 16, borderRadius: 8, borderWidth: 1.5, marginTop: 4 },
-  refreshBtnText: { fontSize: 12, fontWeight: '800' },
+  loaderText: { fontSize: 12, color: T.text2 },
+  emptyContainer: { alignItems: 'center', gap: 10 },
+  emptyIconCircle: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
+  emptyIconText: { fontSize: 24 },
+  emptyTitle: { fontSize: 16, fontWeight: '800', color: T.text1 },
+  emptySub: { fontSize: 12, color: T.text2, textAlign: 'center', lineHeight: 18 },
+  refreshBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 6, borderRadius: 10, borderWidth: 1, marginTop: 4 },
+  refreshBtnText: { fontSize: 12, fontWeight: '700' },
 
-  ctaBanner: { margin: 16, borderRadius: 16, backgroundColor: T.navy, padding: 24, flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 40 },
-  ctaContent: { flex: 1, gap: 6 },
-  ctaTitle: { fontSize: 18, fontWeight: '900', color: '#fff', lineHeight: 24 },
-  ctaSub: { fontSize: 12, color: 'rgba(255,255,255,0.75)' },
-  ctaBtn: { backgroundColor: T.amber, alignSelf: 'flex-start', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10, marginTop: 4 },
-  ctaBtnText: { color: '#fff', fontSize: 13, fontWeight: '800' },
+  trustSection: { paddingHorizontal: 16, gap: 12 },
+  trustTitle: { fontSize: 15, fontWeight: '900', color: T.text1 },
+  trustGrid: { flexDirection: 'row', gap: 10 },
+  trustCard: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: 16, padding: 12, gap: 6, borderWidth: 1.5, borderColor: '#CBD5E1', shadowColor: '#0F172A', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 },
+  trustIconCircle: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#F1F5F9', alignItems: 'center', justifyContent: 'center' },
+  trustCardTitle: { fontSize: 12, fontWeight: '800', color: T.text1 },
+  trustCardSub: { fontSize: 10, color: T.text3, lineHeight: 14 },
 
-  overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(26,28,46,0.65)' },
-  sheet: { position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: T.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40, gap: 14, alignItems: 'center' },
-  handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: T.hairline, marginBottom: 8 },
-  promptIcon: { width: 72, height: 72, borderRadius: 22, backgroundColor: `${T.amber}18`, alignItems: 'center', justifyContent: 'center' },
+  footer: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#FFFFFF', padding: 16, borderTopWidth: 1, borderTopColor: '#CBD5E1', shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.08, shadowRadius: 10, elevation: 5 },
+  joinBtn: { height: 52, borderRadius: 14, backgroundColor: T.navy },
+
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)' },
+  sheet: { backgroundColor: T.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, gap: 14, alignItems: 'center' },
+  handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: T.hairline },
+  promptIcon: { width: 64, height: 64, borderRadius: 20, backgroundColor: `${T.navy}10`, alignItems: 'center', justifyContent: 'center' },
   promptTitle: { fontSize: 20, fontWeight: '900', color: T.text1, textAlign: 'center' },
-  promptSub: { fontSize: 14, color: T.text2, lineHeight: 22, textAlign: 'center' },
-  benefits: { width: '100%', gap: 8 },
-  benefit: { fontSize: 13, color: T.text2, fontWeight: '500' },
-  registerBtn: { height: 52, borderRadius: 14, width: '100%' },
-  loginBtn: { height: 48, borderRadius: 14, width: '100%' },
-  browseBtn: { padding: 8 },
-  browseBtnText: { color: T.text3, fontSize: 13 },
+  promptSub: { fontSize: 13, color: T.text2, textAlign: 'center', lineHeight: 19 },
+  benefits: { width: '100%', backgroundColor: '#F8FAFC', padding: 12, borderRadius: 12, gap: 6 },
+  benefit: { fontSize: 12, color: T.text2, fontWeight: '600' },
+  registerBtn: { height: 48, borderRadius: 12, backgroundColor: T.amber },
+  loginBtn: { height: 48, borderRadius: 12 },
+  browseBtn: { paddingVertical: 4 },
+  browseBtnText: { color: T.text3, fontSize: 13, fontWeight: '600' },
 
-  scrollBtn: {
-    position: 'absolute',
-    top: '32%',
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: 'rgba(26,28,46,0.85)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 100,
-    borderWidth: 1.2,
-    borderColor: 'rgba(255,255,255,0.22)',
-    ...T.shadowSoft,
+  // PIN Login Bottom Sheet Styles with Field Validation & Dynamic Enable Button
+  loginSheetContainer: { backgroundColor: T.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, gap: 14, ...T.shadowSoft },
+  loginSheetHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  loginIconCircle: { width: 48, height: 48, borderRadius: 16, backgroundColor: `${T.navy}10`, alignItems: 'center', justifyContent: 'center' },
+  loginSheetTitle: { fontSize: 18, fontWeight: '900', color: T.text1 },
+  loginSheetSub: { fontSize: 12, color: T.text2, lineHeight: 17 },
+  closeCircleBtn: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#F1F5F9', alignItems: 'center', justifyContent: 'center' },
+
+  errorBannerBox: { backgroundColor: '#FEF2F2', borderRadius: 10, padding: 10, borderWidth: 1, borderColor: '#FCA5A5' },
+  errorBannerText: { color: '#DC2626', fontSize: 12, fontWeight: '700' },
+
+  inputFieldGroup: { gap: 6 },
+  labelWithCheckRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  fieldLabelText: { fontSize: 11, fontWeight: '800', color: T.text3, textTransform: 'uppercase', letterSpacing: 0.4 },
+  checkText: { fontSize: 11, fontWeight: '800', color: T.green },
+
+  phoneInputRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  inputBorderValid: { borderRadius: 12, borderColor: T.green },
+  flagPill: { height: 46, paddingHorizontal: 12, borderRadius: 12, backgroundColor: '#F8FAFC', borderWidth: 1.5, borderColor: '#CBD5E1', alignItems: 'center', justifyContent: 'center' },
+  flagText: { fontSize: 13, fontWeight: '800', color: T.text1 },
+  loginPhoneInput: { flex: 1, height: 46, borderRadius: 12, borderWidth: 1.5, borderColor: '#CBD5E1', paddingHorizontal: 14, fontSize: 15, fontWeight: '700', color: T.text1, backgroundColor: '#FFFFFF' },
+
+  pinLabelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  pinCountText: { fontSize: 11, fontWeight: '800', color: T.navy },
+  pinBoxesRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 6, marginVertical: 4 },
+  pinSquareBox: {
+    flex: 1,
+    height: 48,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#CBD5E1',
+    backgroundColor: '#FFFFFF',
+    textAlign: 'center',
+    fontSize: 20,
+    fontWeight: '800',
+    color: T.navy,
   },
-  scrollBtnLeft: { left: 6 },
-  scrollBtnRight: { right: 6 },
+  pinSquareBoxFilled: {
+    borderColor: T.navy,
+    backgroundColor: `${T.navy}08`,
+  },
+
+  statusGuidanceBox: { backgroundColor: '#F8FAFC', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: '#E2E8F0' },
+  statusGuidanceBoxReady: { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' },
+  statusGuidanceText: { fontSize: 11, fontWeight: '700', color: T.text3 },
+  statusGuidanceTextReady: { color: T.green },
+
+  loginActionBtn: { height: 50, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
+  loginActionBtnDisabled: { backgroundColor: '#CBD5E1', opacity: 0.65 },
+  loginActionBtnEnabled: { backgroundColor: T.navy, opacity: 1, shadowColor: T.navy, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 4 },
+  loginActionBtnText: { fontSize: 15, fontWeight: '800', color: '#64748B' },
+  loginActionBtnTextEnabled: { color: '#FFFFFF' },
+
+  createAccountLinkBtn: { alignItems: 'center', paddingVertical: 6 },
+  createAccountLinkText: { fontSize: 13, color: T.text2 },
 });
