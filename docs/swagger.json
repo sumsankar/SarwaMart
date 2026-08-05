@@ -4287,6 +4287,18 @@
                 }
             }
         },
+        "/api/v1/requests/mine/top": {
+            "get": {
+                "tags": [
+                    "BuyerRequests"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
         "/api/v1/requests/{id}/submit": {
             "post": {
                 "tags": [
@@ -5252,6 +5264,18 @@
                             "type": "string"
                         }
                     }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
+        "/api/v1/listings/mine/top": {
+            "get": {
+                "tags": [
+                    "Listings"
                 ],
                 "responses": {
                     "200": {
