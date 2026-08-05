@@ -220,7 +220,7 @@ const LoginBottomSheet: React.FC<{
     onClose();
   };
 
-  const isValidPhone = /^[6-9]\d{9}$/.test(phone);
+  const isValidPhone = /^\d{10}$/.test(phone);
   const isValidPin = /^\d{6}$/.test(pin);
   const canSubmit = isValidPhone && isValidPin;
 
@@ -232,7 +232,7 @@ const LoginBottomSheet: React.FC<{
   // Status helper message
   const getStatusHelperText = () => {
     if (!phone) return '• Enter 10-digit mobile number';
-    if (!isValidPhone) return '• Mobile number must be 10 digits starting with 6-9';
+    if (!isValidPhone) return '• Mobile number must be 10 digits';
     if (!pin) return '• Enter 6-digit security PIN below';
     if (!isValidPin) return `• Enter ${6 - pin.length} more PIN digit(s)`;
     return '✓ All required fields entered! Tap Login →';
@@ -448,44 +448,83 @@ export const PublicLandingScreen: React.FC<Props> = ({ navigation }) => {
     setLoggingIn(true);
     setError('');
 
-    const targetUrl = getApiUrl('/api/v1/auth/pin/login', apiBaseUrl);
-    console.log(`Submitting PIN login to: ${targetUrl} for phone: ${phone}`);
+    const loginUrl = getApiUrl('/api/v1/auth/pin/login', apiBaseUrl);
+    console.log(`Submitting PIN login to: ${loginUrl} for phone: ${phone}`);
 
     try {
-      const response = await fetch(targetUrl, {
+      // 1. Call POST /api/v1/auth/pin/login
+      const response = await fetch(loginUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone, pin }),
       });
 
-      setLoggingIn(false);
-
       if (response.ok) {
-        const data = await response.json().catch(() => ({}));
-        console.log('PIN Login success data:', data);
+        const loginData = await response.json().catch(() => ({}));
+        console.log('PIN Login success response:', loginData);
 
-        const token = data.token || data.accessToken || 'bearer_token_mock';
-        const userRole = (data.role || data.userRole || 'seller').toLowerCase();
+        const accessToken = loginData.accessToken || loginData.token || '';
+        const refreshToken = loginData.refreshToken || '';
 
-        await AsyncStorage.setItem('sm_auth_token', token);
-        setToken(token);
-        if (userRole === 'buyer') setRole('buyer');
-        else setRole('seller');
+        if (accessToken) {
+          // 2. Securely store accessToken and refreshToken
+          await AsyncStorage.setItem('sm_access_token', accessToken);
+          await AsyncStorage.setItem('sm_auth_token', accessToken);
+          if (refreshToken) {
+            await AsyncStorage.setItem('sm_refresh_token', refreshToken);
+          }
+          setToken(accessToken);
 
-        setLoggedIn(true);
-        setLoginSheetOpen(false);
-        navigation.replace(userRole === 'buyer' ? 'BuyerTabs' : 'SellerTabs');
+          // 3. Fetch User Profile & Role from GET /api/v1/auth/me
+          let resolvedRole: 'seller' | 'buyer' = 'seller';
+          try {
+            const meUrl = getApiUrl('/api/v1/auth/me', apiBaseUrl);
+            const meRes = await fetch(meUrl, {
+              method: 'GET',
+              headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json',
+              },
+            });
+
+            if (meRes.ok) {
+              const meData = await meRes.json();
+              console.log('GET /api/v1/auth/me success profile:', meData);
+              const userRoleStr = (meData.role || meData.tradeRole || meData.userRole || meData.type || '').toLowerCase();
+              if (userRoleStr.includes('buyer') || userRoleStr.includes('trader')) {
+                resolvedRole = 'buyer';
+              } else {
+                resolvedRole = 'seller';
+              }
+            } else {
+              console.warn('/api/v1/auth/me returned status:', meRes.status);
+              // Fallback to role from loginData if available
+              const loginRole = (loginData.role || loginData.userRole || '').toLowerCase();
+              if (loginRole.includes('buyer')) resolvedRole = 'buyer';
+            }
+          } catch (meErr) {
+            console.warn('Error fetching /api/v1/auth/me:', meErr);
+          }
+
+          setLoggingIn(false);
+          setRole(resolvedRole);
+          setLoggedIn(true);
+          setLoginSheetOpen(false);
+
+          // 4. Navigate based on role
+          navigation.replace(resolvedRole === 'buyer' ? 'BuyerTabs' : 'SellerTabs');
+        } else {
+          setLoggingIn(false);
+          setError('Login succeeded but no access token was returned.');
+        }
       } else {
+        setLoggingIn(false);
         setError('Invalid mobile number or 6-digit PIN. Please try again.');
       }
     } catch (err) {
       console.warn('Error calling PIN login API:', err);
       setLoggingIn(false);
-
-      setToken('mock_session_token');
-      setLoggedIn(true);
-      setLoginSheetOpen(false);
-      navigation.replace('SellerTabs');
+      setError('Network error connecting to login server.');
     }
   };
 
