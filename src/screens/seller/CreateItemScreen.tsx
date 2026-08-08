@@ -394,7 +394,10 @@ export const CreateItemScreen: React.FC = () => {
         uom: uom,
         pricePerUnit: parseFloat(pricePerUnit),
         freshness: freshness === 'Fresh on Ice' ? 'FreshOnIce' : freshness,
-        grade: grade,
+        grade: grade === 'Grade A (Premium)' ? 'A'
+             : grade === 'Grade B (Standard)' ? 'B'
+             : grade === 'Grade C' ? 'C'
+             : 'Ungraded',
         region: selectedBranch ? (selectedBranch.name || selectedBranch.city || 'Kakinada Hub') : 'Kakinada Hub',
         branchId: selectedBranchId || null,
         saleType: saleType,
@@ -638,6 +641,21 @@ export const CreateItemScreen: React.FC = () => {
                 />
               </View>
             </View>
+
+            {/* Estimated Total (Quantity × Price) — Reference Only */}
+            {quantity.trim() && pricePerUnit.trim() && !isNaN(Number(quantity)) && !isNaN(Number(pricePerUnit)) && Number(quantity) > 0 && Number(pricePerUnit) > 0 && (
+              <View style={styles.totalRow}>
+                <View style={styles.totalRowInner}>
+                  <Text style={styles.totalLabel}>Estimated Total Value</Text>
+                  <Text style={styles.totalValue}>
+                    ₹ {(Number(quantity) * Number(pricePerUnit)).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </Text>
+                </View>
+                <Text style={styles.totalHint}>
+                  {quantity} × ₹{Number(pricePerUnit).toFixed(2)} per {uom.split(' ')[0]}  •  For reference only
+                </Text>
+              </View>
+            )}
 
             {/* d. Sourcing Region / Port Choice Chips */}
             <View style={styles.fieldGroup}>
@@ -1220,5 +1238,36 @@ const styles = StyleSheet.create({
   },
   submitActionBtnTextEnabled: {
     color: '#FFFFFF',
+  },
+
+  totalRow: {
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    gap: 4,
+  },
+  totalRowInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  totalLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#166534',
+  },
+  totalValue: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#15803D',
+  },
+  totalHint: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#4ADE80',
+    fontStyle: 'italic',
   },
 });
