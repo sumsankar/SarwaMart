@@ -318,8 +318,8 @@ export const ProfileScreen: React.FC = () => {
 
         {/* Stats Row */}
         <View style={styles.statsRow}>
-          {[[statVal1, statLabel1], [ratingText, 'Rating'], [memberSinceText, 'Member since']].map(([v, l], i) => (
-            <View key={l} style={[styles.statCell, i < 2 && styles.statCellBorder]}>
+          {[[statVal1, statLabel1], [memberSinceText, 'Member since']].map(([v, l], i) => (
+            <View key={l} style={[styles.statCell, i < 1 && styles.statCellBorder]}>
               <Text style={styles.statVal}>{v}</Text>
               <Text style={styles.statLabel}>{l}</Text>
             </View>
@@ -361,13 +361,10 @@ export const ProfileScreen: React.FC = () => {
                           onChangeText={(v) => setForm(f => ({ ...f, fullName: v }))}
                           placeholder="e.g. Ravi Kumar"
                         />
-                        <Input
-                          label="Phone Number"
-                          value={form.phone}
-                          onChangeText={(v) => setForm(f => ({ ...f, phone: v }))}
-                          placeholder="+91 98765 43210"
-                          keyboardType="phone-pad"
-                        />
+                        <Text style={styles.labelTitle}>Phone Number (Read-only)</Text>
+                        <View style={styles.readOnlyRoleBox}>
+                          <Text style={styles.readOnlyRoleText}>📱 {form.phone || '+91 98765 43210'}</Text>
+                        </View>
                         <Input
                           label="Email Address"
                           value={form.email}
@@ -395,19 +392,9 @@ export const ProfileScreen: React.FC = () => {
                           ))}
                         </View>
 
-                        <Text style={styles.labelTitle}>Trade Role</Text>
-                        <View style={styles.pillRow}>
-                          {['seller', 'buyer'].map(r => (
-                            <TouchableOpacity
-                              key={r}
-                              onPress={() => setForm(f => ({ ...f, role: r as 'seller' | 'buyer' }))}
-                              style={[styles.pillOption, form.role === r && styles.pillOptionActive]}
-                            >
-                              <Text style={[styles.pillText, form.role === r && styles.pillTextActive]}>
-                                {r === 'seller' ? 'Seller (Farmer)' : 'Buyer (Trader)'}
-                              </Text>
-                            </TouchableOpacity>
-                          ))}
+                        <Text style={styles.labelTitle}>Trade Role (Read-only)</Text>
+                        <View style={styles.readOnlyRoleBox}>
+                          <Text style={styles.readOnlyRoleText}>🔒 {isSeller ? 'Seller (Farmer / Supplier)' : 'Buyer (Trader / Exporter)'}</Text>
                         </View>
 
                         <Text style={styles.labelTitle}>State *</Text>
@@ -760,6 +747,8 @@ const styles = StyleSheet.create({
 
   selectBtn: { height: 44, borderRadius: 10, borderWidth: 1.5, borderColor: '#CBD5E1', backgroundColor: '#F8FAFC', paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
   selectBtnText: { fontSize: 13, fontWeight: '600', color: T.text1 },
+  readOnlyRoleBox: { height: 44, borderRadius: 10, borderWidth: 1.5, borderColor: '#E2E8F0', backgroundColor: '#F1F5F9', paddingHorizontal: 14, justifyContent: 'center', marginBottom: 8 },
+  readOnlyRoleText: { fontSize: 13, fontWeight: '700', color: T.navy },
   gridRow: { flexDirection: 'row', gap: 10 },
 
   chipGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
