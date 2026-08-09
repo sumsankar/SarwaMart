@@ -27,6 +27,19 @@ export interface UserProfile {
   stateName?: string;
   districtId?: string | number;
   districtName?: string;
+  dealsCount?: number | string;
+  totalDeals?: number | string;
+  deals?: number | string;
+  completedDeals?: number | string;
+  rating?: number | string;
+  userRating?: number | string;
+  createdAt?: string;
+  createdDate?: string;
+  memberSince?: string;
+  joiningDate?: string;
+  registeredOn?: string;
+  listingsCount?: number | string;
+  requestsCount?: number | string;
   [key: string]: any;
 }
 

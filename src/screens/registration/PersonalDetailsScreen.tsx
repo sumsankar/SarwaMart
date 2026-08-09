@@ -31,26 +31,6 @@ interface StateItem {
   code?: string;
 }
 
-const DEFAULT_STATES: StateItem[] = [
-  { name: 'Andhra Pradesh' },
-  { name: 'West Bengal' },
-  { name: 'Tamil Nadu' },
-  { name: 'Kerala' },
-  { name: 'Odisha' },
-  { name: 'Gujarat' },
-  { name: 'Maharashtra' },
-  { name: 'Karnataka' },
-  { name: 'Telangana' },
-  { name: 'Goa' },
-  { name: 'Assam' },
-  { name: 'Bihar' },
-  { name: 'Punjab' },
-  { name: 'Haryana' },
-  { name: 'Uttar Pradesh' },
-  { name: 'Rajasthan' },
-  { name: 'Madhya Pradesh' },
-];
-
 const getApiUrl = (endpoint: string, base: string) => {
   let resolvedBase = base.trim();
   if (resolvedBase.endsWith('/')) {
@@ -84,7 +64,7 @@ export const PersonalDetailsScreen: React.FC<Props> = ({ navigation, route }) =>
     address: '',
   });
 
-  const [statesList, setStatesList] = useState<StateItem[]>(DEFAULT_STATES);
+  const [statesList, setStatesList] = useState<StateItem[]>([]);
   const [loadingStates, setLoadingStates] = useState(false);
   const [stateModalVisible, setStateModalVisible] = useState(false);
   const [loading, setLoading] = useState(false);
