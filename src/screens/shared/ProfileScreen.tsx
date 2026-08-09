@@ -6,6 +6,7 @@ import { AppBar } from '../../components/ui/AppBar';
 import { Avatar } from '../../components/ui/Avatar';
 import { Icon } from '../../components/ui/Icon';
 import { T } from '../../constants/tokens';
+import { useAppStore } from '../../store/appStore';
 
 const SECTIONS = [
   { title: 'Personal Details',        icon: 'user' },
@@ -19,6 +20,12 @@ const SECTIONS = [
 
 export const ProfileScreen: React.FC = () => {
   const nav = useNavigation<any>();
+  const { role, user } = useAppStore();
+  const isSeller = role === 'seller';
+
+  const rawName = user?.fullName || user?.name || (user?.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : null);
+  const userName = rawName || (isSeller ? 'Ravi Kumar' : 'Priya Nair');
+  const accountType = user?.accountType || user?.type || 'Individual';
 
   return (
     <View style={styles.container}>
@@ -36,16 +43,16 @@ export const ProfileScreen: React.FC = () => {
         {/* Hero */}
         <View style={styles.hero}>
           <View style={styles.avatarWrap}>
-            <Avatar name="Ravi Kumar" size={72} bg="rgba(255,255,255,0.2)" />
+            <Avatar name={userName} size={72} bg="rgba(255,255,255,0.2)" />
             <View style={styles.cameraBadge}>
               <Icon name="camera" size={11} color="#fff" />
             </View>
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.heroName}>Ravi Kumar</Text>
+            <Text style={styles.heroName}>{userName}</Text>
             <View style={styles.heroBadges}>
-              <View style={styles.badgeSeller}><Text style={styles.badgeSellerText}>Seller</Text></View>
-              <View style={styles.badgeType}><Text style={styles.badgeTypeText}>Individual</Text></View>
+              <View style={isSeller ? styles.badgeSeller : styles.badgeType}><Text style={styles.badgeSellerText}>{isSeller ? 'Seller' : 'Buyer'}</Text></View>
+              <View style={styles.badgeType}><Text style={styles.badgeTypeText}>{accountType}</Text></View>
               <View style={styles.badgeKyc}><Text style={styles.badgeKycText}>✓ KYC Verified</Text></View>
             </View>
           </View>

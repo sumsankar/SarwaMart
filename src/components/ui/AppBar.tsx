@@ -15,9 +15,11 @@ type Nav = NativeStackNavigationProp<RootStackParams>;
 
 export const AppBar: React.FC = () => {
   const nav = useNavigation<Nav>();
-  const { role } = useAppStore();
+  const { role, user } = useAppStore();
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const userName = role === 'seller' ? 'Ravi Kumar' : 'Priya Nair';
+
+  const rawName = user?.fullName || user?.name || (user?.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : null);
+  const userName = rawName || (role === 'seller' ? 'Ravi Kumar' : 'Priya Nair');
 
   return (
     <>
@@ -33,7 +35,7 @@ export const AppBar: React.FC = () => {
               <View style={styles.notifDot} />
             </TouchableOpacity>
             <TouchableOpacity onPress={() => nav.navigate('Profile')} hitSlop={4}>
-              <Avatar name={userName} size={32} bg={`${T.navy}12`} />
+              <Avatar name={userName} size={32} bg={T.navy} />
             </TouchableOpacity>
           </View>
         </View>
