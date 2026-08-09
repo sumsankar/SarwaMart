@@ -19,6 +19,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { RootStackParams } from '../../navigation/RootNavigator';
 import { Logo } from '../../components/ui/Logo';
 import { BannerCarousel } from '../../components/ui/BannerCarousel';
+import { CategoryFilterBar } from '../../components/ui/CategoryFilterBar';
 import { CountdownTimer } from '../../components/ui/CountdownTimer';
 import { Button } from '../../components/ui/Button';
 import { Icon } from '../../components/ui/Icon';
@@ -618,40 +619,26 @@ export const PublicLandingScreen: React.FC<Props> = ({ navigation }) => {
           </View>
 
           {/* Category Horizontal Pills */}
-          <View style={styles.categoryHeaderRow}>
-            <Text style={styles.filterTitleText}>Categories:</Text>
-            {(selectedCategoryId || selectedSubcategoryName) && (
-              <TouchableOpacity onPress={() => { setSelectedCategoryId(null); setSelectedSubcategoryName(null); }}>
-                <Text style={styles.resetFilterText}>Reset Filters</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryRow}>
-            <TouchableOpacity
-              onPress={() => { setSelectedCategoryId(null); setSelectedSubcategoryName(null); }}
-              style={[styles.catPill, !selectedCategoryId && styles.catPillActive]}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.catEmoji}>🌊</Text>
-              <Text style={[styles.catName, !selectedCategoryId && styles.catNameActive]}>All Aqua</Text>
-            </TouchableOpacity>
-
-            {categories.map(c => {
-              const isSelected = selectedCategoryId === c.id;
-              return (
-                <TouchableOpacity
-                  key={c.id}
-                  onPress={() => { setSelectedCategoryId(c.id); setSelectedSubcategoryName(null); }}
-                  style={[styles.catPill, isSelected && styles.catPillActive]}
-                  activeOpacity={0.85}
-                >
-                  <Text style={styles.catEmoji}>{c.emoji || productIcon(c.name)}</Text>
-                  <Text style={[styles.catName, isSelected && styles.catNameActive]}>{c.name}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
+          <CategoryFilterBar
+            categories={categories.length > 0 ? categories : undefined}
+            selectedCategory={categories.find(c => c.id === selectedCategoryId)?.name || 'All'}
+            onSelectCategory={(name, catObj) => {
+              if (name.toLowerCase() === 'all' || name.toLowerCase() === 'all aqua' || !catObj || catObj.id === 'all_auto') {
+                setSelectedCategoryId(null);
+              } else {
+                setSelectedCategoryId(catObj.id);
+              }
+              setSelectedSubcategoryName(null);
+            }}
+            title="CATEGORIES:"
+            showReset={Boolean(selectedCategoryId || selectedSubcategoryName)}
+            onReset={() => {
+              setSelectedCategoryId(null);
+              setSelectedSubcategoryName(null);
+            }}
+            allLabel="All Aqua"
+            allEmoji="🌊"
+          />
 
           {/* Subcategory Strip if selected */}
           {selectedCategoryObj && activeSubcategories.length > 0 && (

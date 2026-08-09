@@ -92,23 +92,33 @@ export const ItemDetailSellerScreen: React.FC = () => {
           )}
 
           {/* Specs grid */}
-          <Card style={styles.cardNoMargin}>
-            <View style={styles.grid}>
-              {[
-                ['Quantity', item.qty],
-                ['Starting Price', item.price],
-                ['Grade', `Grade ${item.grade}`],
-                ['Freshness', item.freshness],
-                ['Region', item.region],
-                ['Total bids', String(item.bids)],
-              ].map(([k, v]) => (
-                <View key={k} style={styles.gridCell}>
-                  <Text style={styles.gridKey}>{k}</Text>
-                  <Text style={styles.gridVal}>{v}</Text>
+          {(() => {
+            const qtyNum = parseFloat(String(item.quantity || item.qty || '0').replace(/[^0-9.]/g, '')) || 0;
+            const unitPriceNum = item.pricePerUnit ?? (item.priceNum ?? (item.price ? parseFloat(String(item.price).replace(/[^0-9.]/g, '')) : 0));
+            const totalVal = qtyNum * unitPriceNum;
+            const displayTotal = totalVal > 0 ? `₹${totalVal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'N/A';
+
+            return (
+              <Card style={styles.cardNoMargin}>
+                <View style={styles.grid}>
+                  {[
+                    ['Quantity', item.quantity ? `${item.quantity} ${item.uom || 'kg'}` : (item.qty || 'N/A')],
+                    ['Price per Unit', item.pricePerUnit ? `₹${item.pricePerUnit.toFixed(2)}/${item.uom || 'kg'}` : (item.price || 'N/A')],
+                    ['Total Estimated Value', displayTotal],
+                    ['Grade', item.grade ? (item.grade.startsWith('Grade') ? item.grade : `Grade ${item.grade}`) : 'Grade A'],
+                    ['Freshness', item.freshness || 'Fresh on Ice'],
+                    ['Region', item.region || item.branchName || item.port || 'N/A'],
+                    ['Total Bids', String(item.bids ?? 0)],
+                  ].map(([k, v]) => (
+                    <View key={k} style={styles.gridCell}>
+                      <Text style={styles.gridKey}>{k}</Text>
+                      <Text style={[styles.gridVal, k === 'Total Estimated Value' && { color: T.green, fontWeight: '900' }]}>{v}</Text>
+                    </View>
+                  ))}
                 </View>
-              ))}
-            </View>
-          </Card>
+              </Card>
+            );
+          })()}
         </View>
 
         {/* Bids Received */}

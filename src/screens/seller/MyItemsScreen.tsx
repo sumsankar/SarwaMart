@@ -1,11 +1,12 @@
-import React, { useCallback, useState } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, RefreshControl, Image } from 'react-native';
+import React, { useCallback, useState, useMemo } from 'react';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, RefreshControl, Image, ScrollView } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParams } from '../../navigation/RootNavigator';
 import { Header } from '../../components/ui/Header';
 import { AppBar } from '../../components/ui/AppBar';
 import { SegTabs } from '../../components/ui/SegTabs';
+import { CategoryFilterBar } from '../../components/ui/CategoryFilterBar';
 import { StatusPill } from '../../components/ui/StatusPill';
 import { Icon } from '../../components/ui/Icon';
 import { CountdownTimer } from '../../components/ui/CountdownTimer';
@@ -13,10 +14,45 @@ import { T } from '../../constants/tokens';
 import { useAppStore } from '../../store/appStore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import { SELLER_ITEMS, productIcon } from '../../constants/mockData';
+
 const getApiUrl = (endpoint: string, base: string) => {
   const cleanBase = base.endsWith('/') ? base.slice(0, -1) : base;
   const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
   return `${cleanBase}${cleanEndpoint}`;
+};
+
+const getItemImageUri = (item: any): string | null => {
+  if (!item) return null;
+
+  if (typeof item.imageUrl === 'string' && item.imageUrl) return item.imageUrl;
+  if (typeof item.defaultImageThumbnailUrl === 'string' && item.defaultImageThumbnailUrl) return item.defaultImageThumbnailUrl;
+  if (typeof item.thumbnailUrl === 'string' && item.thumbnailUrl) return item.thumbnailUrl;
+  if (typeof item.defaultImageUrl === 'string' && item.defaultImageUrl) return item.defaultImageUrl;
+  if (typeof item.coverImageUrl === 'string' && item.coverImageUrl) return item.coverImageUrl;
+
+  if (Array.isArray(item.images) && item.images.length > 0) {
+    const coverObj = item.images.find((img: any) => img && (img.isCover || img.isDefault || img.isPrimary));
+    const targetObj = coverObj || item.images[0];
+
+    if (typeof targetObj === 'string') {
+      return targetObj.startsWith('data:') || targetObj.startsWith('http')
+        ? targetObj
+        : `data:image/jpeg;base64,${targetObj}`;
+    }
+
+    if (targetObj && typeof targetObj === 'object') {
+      const url = targetObj.imageUrl || targetObj.url || targetObj.thumbnailUrl || targetObj.defaultImageUrl || targetObj.imagePath;
+      if (url && typeof url === 'string') return url;
+
+      const base64 = targetObj.base64Data || targetObj.base64 || targetObj.data;
+      if (base64 && typeof base64 === 'string') {
+        return base64.startsWith('data:') ? base64 : `data:image/jpeg;base64,${base64}`;
+      }
+    }
+  }
+
+  return null;
 };
 
 type Nav = NativeStackNavigationProp<RootStackParams>;
@@ -100,9 +136,20 @@ export const MyItemsScreen: React.FC = () => {
     fetchListings(1, true);
   }, [seg, apiBaseUrl, token]);
 
-  const filteredItems = seg === 'All'
-    ? items
-    : items.filter(i => String(i.status || '').toLowerCase() === seg.toLowerCase());
+  const [selectedCategory, setSelectedCategory] = useState('All');
+
+  const filteredItems = useMemo(() => {
+    return items.filter(i => {
+      if (seg !== 'All' && String(i.status || '').toLowerCase() !== seg.toLowerCase()) {
+        return false;
+      }
+      if (selectedCategory !== 'All') {
+        const catStr = (i.subcategoryName || i.categoryName || i.category || i.subcategory || i.name || '').toLowerCase();
+        if (!catStr.includes(selectedCategory.toLowerCase())) return false;
+      }
+      return true;
+    });
+  }, [items, seg, selectedCategory]);
 
   const renderItem = useCallback(({ item, index }: { item: any; index: number }) => {
     const statusStr = String(item.status || 'Pending').toLowerCase();
@@ -116,7 +163,12 @@ export const MyItemsScreen: React.FC = () => {
     const gradeText = item.grade ? (item.grade.startsWith('Grade') ? item.grade : `Grade ${item.grade}`) : 'Grade A';
     const freshnessText = item.freshness === 'FreshOnIce' ? 'Fresh on Ice' : (item.freshness || 'Fresh on Ice');
 
-    const imgUri = item.imageUrl || item.defaultImageThumbnailUrl || item.thumbnailUrl || (item.images && item.images[0]?.url);
+    const qtyNum = parseFloat(String(item.quantity || item.qty || '0').replace(/[^0-9.]/g, '')) || 0;
+    const unitPriceNum = item.pricePerUnit ?? (item.priceNum ?? (item.price ? parseFloat(String(item.price).replace(/[^0-9.]/g, '')) : 0));
+    const totalVal = qtyNum * unitPriceNum;
+    const displayTotal = totalVal > 0 ? `₹${totalVal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : null;
+
+    const imgUri = getItemImageUri(item);
 
     return (
       <TouchableOpacity
@@ -131,13 +183,22 @@ export const MyItemsScreen: React.FC = () => {
               {imgUri ? (
                 <Image source={{ uri: imgUri }} style={styles.cardImg} resizeMode="cover" />
               ) : (
-                <Text style={styles.emoji}>🐟</Text>
+                <Text style={styles.emoji}>{productIcon(subText || item.name)}</Text>
               )}
             </View>
             <View style={styles.topInfo}>
               <View style={styles.nameRow}>
                 <Text style={styles.name} numberOfLines={1}>{item.name || 'Seafood Listing'}</Text>
                 <StatusPill status={isPending ? 'Pending' : (item.status || 'Live')} />
+              </View>
+              <View style={styles.tagsRow}>
+                <View style={styles.tag}>
+                  <Icon name="shield" size={10} color={T.navy} />
+                  <Text style={styles.tagText}>{gradeText}</Text>
+                </View>
+                <View style={styles.tag}>
+                  <Text style={styles.tagText}>{freshnessText}</Text>
+                </View>
               </View>
               <Text style={styles.sub}>{subText} · {qtyText}</Text>
               <View style={styles.locRow}>
@@ -147,19 +208,23 @@ export const MyItemsScreen: React.FC = () => {
             </View>
           </View>
 
-          <View style={styles.priceRow}>
-            <Text style={styles.price}>{priceText}</Text>
-            {isLive && <CountdownTimer seedSeconds={(index + 1) * 7823 + 3601} compact />}
-          </View>
-
-          <View style={styles.tagsRow}>
-            <View style={styles.tag}>
-              <Icon name="shield" size={10} color={T.navy} />
-              <Text style={styles.tagText}>{gradeText}</Text>
+          {/* Clean Price & Total Container */}
+          <View style={styles.priceContainer}>
+            <View style={styles.priceCol}>
+              <Text style={styles.priceLabel}>Unit Price</Text>
+              <Text style={styles.price}>{priceText}</Text>
             </View>
-            <View style={styles.tag}>
-              <Text style={styles.tagText}>{freshnessText}</Text>
-            </View>
+            {displayTotal && (
+              <View style={styles.totalCol}>
+                <Text style={styles.totalLabel}>Total Value</Text>
+                <Text style={styles.totalText}>{displayTotal}</Text>
+              </View>
+            )}
+            {isLive && (
+              <View style={styles.timerWrap}>
+                <CountdownTimer seedSeconds={(index + 1) * 7823 + 3601} compact />
+              </View>
+            )}
           </View>
 
           <View style={styles.divider} />
@@ -194,6 +259,14 @@ export const MyItemsScreen: React.FC = () => {
         }
       />
       <SegTabs tabs={['All', 'Live', 'Pending', 'Sold', 'Expired']} active={seg} onSelect={setSeg} />
+
+      {/* Reusable Category Filter Bar */}
+      <CategoryFilterBar
+        selectedCategory={selectedCategory}
+        onSelectCategory={(c) => setSelectedCategory(c)}
+        title="CATEGORY:"
+        containerStyle={styles.catFilterContainer}
+      />
 
       <Text style={styles.countText}>
         Showing {filteredItems.length} {totalCount > 0 ? `of ${totalCount}` : ''} {filteredItems.length === 1 ? 'item' : 'items'}
@@ -254,6 +327,44 @@ const styles = StyleSheet.create({
   cardBody: { padding: 14, gap: 10 },
 
   topRow: { flexDirection: 'row', gap: 12 },
+  catFilterContainer: {
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  catSectionTitle: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: T.text3,
+    letterSpacing: 0.5,
+    paddingHorizontal: 16,
+    marginBottom: 6,
+  },
+  catFilterBar: { paddingHorizontal: 16, gap: 8 },
+  catChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 13,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+  },
+  catChipActive: {
+    backgroundColor: T.navy,
+    borderColor: T.navy,
+    shadowColor: T.navy,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  catEmoji: { fontSize: 13 },
+  catText: { fontSize: 12, fontWeight: '700', color: T.text2 },
+  catTextActive: { color: '#FFFFFF', fontWeight: '800' },
   imgBox: { width: 72, height: 72, borderRadius: 12, backgroundColor: `${T.navy}10`, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   cardImg: { width: '100%', height: '100%' },
   emoji: { fontSize: 36 },
@@ -264,8 +375,25 @@ const styles = StyleSheet.create({
   locRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 1 },
   locText: { fontSize: 11, color: T.text3, flexShrink: 1 },
 
-  priceRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  price: { fontSize: 20, fontWeight: '900', color: T.navy, fontVariant: ['tabular-nums'] },
+  priceContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+    marginVertical: 4,
+  },
+  priceCol: { gap: 1 },
+  priceLabel: { fontSize: 10, fontWeight: '700', color: T.text3, textTransform: 'uppercase' },
+  price: { fontSize: 16, fontWeight: '900', color: T.navy, fontVariant: ['tabular-nums'] },
+  totalCol: { gap: 1, alignItems: 'flex-start' },
+  totalLabel: { fontSize: 10, fontWeight: '800', color: T.green, textTransform: 'uppercase' },
+  totalText: { fontSize: 15, fontWeight: '900', color: T.green, fontVariant: ['tabular-nums'] },
+  timerWrap: { alignItems: 'flex-end' },
 
   tagsRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
   tag: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, backgroundColor: `${T.navy}08`, borderWidth: 1, borderColor: `${T.navy}20` },

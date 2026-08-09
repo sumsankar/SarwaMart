@@ -7,6 +7,7 @@ import { RootStackParams } from '../../navigation/RootNavigator';
 import { AppBar } from '../../components/ui/AppBar';
 import { Icon } from '../../components/ui/Icon';
 import { BannerCarousel } from '../../components/ui/BannerCarousel';
+import { CategoryFilterBar } from '../../components/ui/CategoryFilterBar';
 import { SectionHeader } from '../../components/ui/SectionHeader';
 import { CountdownTimer } from '../../components/ui/CountdownTimer';
 import { Button } from '../../components/ui/Button';
@@ -58,6 +59,39 @@ const getApiUrl = (endpoint: string, base: string) => {
     }
   }
   return `${resolvedBase}${cleanEndpoint}`;
+};
+
+const getItemImageUri = (item: any): string | null => {
+  if (!item) return null;
+
+  if (typeof item.imageUrl === 'string' && item.imageUrl) return item.imageUrl;
+  if (typeof item.defaultImageThumbnailUrl === 'string' && item.defaultImageThumbnailUrl) return item.defaultImageThumbnailUrl;
+  if (typeof item.thumbnailUrl === 'string' && item.thumbnailUrl) return item.thumbnailUrl;
+  if (typeof item.defaultImageUrl === 'string' && item.defaultImageUrl) return item.defaultImageUrl;
+  if (typeof item.coverImageUrl === 'string' && item.coverImageUrl) return item.coverImageUrl;
+
+  if (Array.isArray(item.images) && item.images.length > 0) {
+    const coverObj = item.images.find((img: any) => img && (img.isCover || img.isDefault || img.isPrimary));
+    const targetObj = coverObj || item.images[0];
+
+    if (typeof targetObj === 'string') {
+      return targetObj.startsWith('data:') || targetObj.startsWith('http')
+        ? targetObj
+        : `data:image/jpeg;base64,${targetObj}`;
+    }
+
+    if (targetObj && typeof targetObj === 'object') {
+      const url = targetObj.imageUrl || targetObj.url || targetObj.thumbnailUrl || targetObj.defaultImageUrl || targetObj.imagePath;
+      if (url && typeof url === 'string') return url;
+
+      const base64 = targetObj.base64Data || targetObj.base64 || targetObj.data;
+      if (base64 && typeof base64 === 'string') {
+        return base64.startsWith('data:') ? base64 : `data:image/jpeg;base64,${base64}`;
+      }
+    }
+  }
+
+  return null;
 };
 
 export const SellerHomeScreen: React.FC = () => {
@@ -316,6 +350,13 @@ export const SellerHomeScreen: React.FC = () => {
             )}
           </TouchableOpacity>
         </View>
+
+        {/* Top Category Filter Bar */}
+        <CategoryFilterBar
+          selectedCategory={filters.category}
+          onSelectCategory={(c) => setFilters(f => ({ ...f, category: c }))}
+          title=""
+        />
       </View>
 
       <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
@@ -345,16 +386,18 @@ export const SellerHomeScreen: React.FC = () => {
               </View>
             )}
             {filteredItems.slice(0, 10).map((item, idx) => {
-              const itemImgUri = item.imageUrl || item.defaultImageThumbnailUrl || item.thumbnailUrl ||
-                (Array.isArray(item.images) && item.images.length > 0
-                  ? (typeof item.images[0] === 'string' ? item.images[0] : (item.images[0].imageUrl || item.images[0].url || item.images[0].base64Data))
-                  : null);
+              const itemImgUri = getItemImageUri(item);
               const displaySub = item.subcategoryName || item.categoryName || item.subcategory || item.category || 'Seafood';
               const displayQty = item.quantity ? `${item.quantity} ${item.uom || 'kg'}` : (item.quantityRemaining || item.qty || '100 kg');
               const displayRegion = item.region || item.branchName || item.port || 'Kakinada Port';
               const displayPrice = item.pricePerUnit ? `₹${item.pricePerUnit.toFixed(2)}/${item.uom || 'kg'}` : (item.price || (item.startingPrice ? `₹${item.startingPrice}` : '₹0.00'));
               const displayGrade = item.grade ? (item.grade.startsWith('Grade') || item.grade.startsWith('Gr.') ? item.grade : `Gr. ${item.grade}`) : 'Gr. A';
               const displayFreshness = item.freshness === 'FreshOnIce' ? 'Fresh on Ice' : (item.freshness || 'Fresh on Ice');
+
+              const qtyNum = parseFloat(String(item.quantity || item.quantityRemaining || item.qty || '0').replace(/[^0-9.]/g, '')) || 0;
+              const unitPriceNum = item.pricePerUnit ?? (item.priceNum ?? (item.price ? parseFloat(String(item.price).replace(/[^0-9.]/g, '')) : 0));
+              const totalVal = qtyNum * unitPriceNum;
+              const displayTotal = totalVal > 0 ? `₹${totalVal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : null;
 
               const getAccentColor = (statusVal: any) => {
                 const s = String(statusVal || '').toLowerCase().replace(/[\s_-]/g, '');
@@ -395,6 +438,17 @@ export const SellerHomeScreen: React.FC = () => {
                       <Text style={styles.itemName} numberOfLines={1}>{item.name || item.title || 'Aqua Produce'}</Text>
                       <StatusPill status={itemStatus} />
                     </View>
+
+                    <View style={styles.itemTagsRow}>
+                      <View style={styles.itemTag}>
+                        <Icon name="shield" size={10} color={T.navy} />
+                        <Text style={styles.itemTagText}>{displayGrade}</Text>
+                      </View>
+                      <View style={styles.itemTag}>
+                        <Text style={styles.itemTagText}>{displayFreshness}</Text>
+                      </View>
+                    </View>
+
                     <Text style={styles.itemSub} numberOfLines={1}>
                       {displaySub} • {displayQty}
                     </Text>
@@ -406,19 +460,17 @@ export const SellerHomeScreen: React.FC = () => {
                       </Text>
                     </View>
 
-                    <View style={styles.itemPriceRow}>
-                      <Text style={styles.itemPrice}>{displayPrice}</Text>
-                      <CountdownTimer seedSeconds={getSeedSeconds(item.id || `seed_${idx}`)} compact />
-                    </View>
-
-                    <View style={styles.itemTagsRow}>
-                      <View style={styles.itemTag}>
-                        <Icon name="shield" size={10} color={T.navy} />
-                        <Text style={styles.itemTagText}>{displayGrade}</Text>
+                    <View style={styles.cardPriceBox}>
+                      <View style={styles.cardPriceRow}>
+                        <Text style={styles.cardPriceUnitLabel}>Unit:</Text>
+                        <Text style={styles.cardPriceUnit}>{displayPrice}</Text>
                       </View>
-                      <View style={styles.itemTag}>
-                        <Text style={styles.itemTagText}>{displayFreshness}</Text>
-                      </View>
+                      {displayTotal && (
+                        <View style={styles.cardPriceRow}>
+                          <Text style={styles.cardTotalLabel}>Total:</Text>
+                          <Text style={styles.cardTotalVal}>{displayTotal}</Text>
+                        </View>
+                      )}
                     </View>
 
                     <TouchableOpacity onPress={() => { setSelectedItem(item); nav.navigate('ItemDetailSeller'); }} style={styles.placeBidBtn} activeOpacity={0.85}>
@@ -643,6 +695,31 @@ const styles = StyleSheet.create({
   },
   filterBadgeText: { color: '#fff', fontSize: 10, fontWeight: '800' },
 
+  topCatBar: { paddingBottom: 2, paddingTop: 4, gap: 8 },
+  topCatChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 13,
+    paddingVertical: 7,
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#CBD5E1',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  topCatChipActive: {
+    backgroundColor: T.navy,
+    borderColor: T.navy,
+  },
+  topCatEmoji: { fontSize: 13 },
+  topCatText: { fontSize: 12, fontWeight: '700', color: T.text2 },
+  topCatTextActive: { color: '#FFFFFF', fontWeight: '800' },
+
   loaderBox: { paddingVertical: 24, alignItems: 'center', gap: 8 },
   loaderText: { fontSize: 12, color: T.text2, fontWeight: '600' },
   emptyBox: { paddingHorizontal: 20, paddingVertical: 20 },
@@ -665,7 +742,7 @@ const styles = StyleSheet.create({
   addText: { fontSize: 12, fontWeight: '800', color: T.navy, textAlign: 'center', lineHeight: 16 },
 
   // Public Dashboard Card Styling
-  itemCardCarousel: { width: 215, borderRadius: 16, backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: '#E2E8F0', overflow: 'hidden', shadowColor: '#0F172A', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.08, shadowRadius: 8, elevation: 3 },
+  itemCardCarousel: { width: 225, borderRadius: 16, backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: '#E2E8F0', overflow: 'hidden', shadowColor: '#0F172A', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.08, shadowRadius: 8, elevation: 3 },
   itemAccent: { height: 3, backgroundColor: T.navy },
   itemImgBox: { height: 95, backgroundColor: '#F8FAFC', alignItems: 'center', justifyContent: 'center', position: 'relative' },
   itemCardImg: { width: '100%', height: '100%' },
@@ -679,6 +756,22 @@ const styles = StyleSheet.create({
   itemSub: { fontSize: 11, color: T.text2, fontWeight: '600' },
   itemLocRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   itemLocText: { fontSize: 11, color: T.text3, flexShrink: 1 },
+
+  cardPriceBox: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    gap: 3,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+    marginTop: 2,
+  },
+  cardPriceRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  cardPriceUnitLabel: { fontSize: 10, fontWeight: '700', color: T.text3 },
+  cardPriceUnit: { fontSize: 13, fontWeight: '900', color: T.navy },
+  cardTotalLabel: { fontSize: 10, fontWeight: '800', color: T.green },
+  cardTotalVal: { fontSize: 13, fontWeight: '900', color: T.green },
   itemPriceRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 6, marginTop: 2 },
   itemPrice: { fontSize: 14, fontWeight: '900', color: T.navy },
   itemTagsRow: { flexDirection: 'row', gap: 5, flexWrap: 'wrap' },
