@@ -7,7 +7,6 @@ import { RootStackParams } from '../../navigation/RootNavigator';
 import { Header } from '../../components/ui/Header';
 import { AppBar } from '../../components/ui/AppBar';
 import { Card } from '../../components/ui/Card';
-import { Avatar } from '../../components/ui/Avatar';
 import { Icon } from '../../components/ui/Icon';
 import { Button } from '../../components/ui/Button';
 import { CountdownTimer } from '../../components/ui/CountdownTimer';
@@ -152,70 +151,134 @@ export const ItemDetailBuyerScreen: React.FC = () => {
     nav.navigate('InvoiceList');
   };
 
+  if (!item) {
+    return (
+      <View style={styles.container}>
+        <AppBar />
+        <Header noSafeArea title="Item" onBack={() => nav.goBack()} />
+        <View style={styles.fallback}>
+          <Text style={styles.fallbackText}>This item is no longer available.</Text>
+        </View>
+      </View>
+    );
+  }
+
+  const saleTypeVal = item.saleType || item.tradeType || item.listingType || item.type || 'Auction';
+  const isDirectSale = saleTypeVal === 'DirectSale';
+
   return (
     <View style={styles.container}>
       <AppBar />
       <Header noSafeArea
-        title={item?.name || item?.title || 'Listing Detail'}
+        title={item.name || item.title || 'Listing Detail'}
         onBack={() => nav.goBack()}
         right={
           <View style={styles.headerRight}>
-            <TouchableOpacity><Icon name="heart" size={20} color={T.text2} /></TouchableOpacity>
-            <TouchableOpacity><Icon name="share" size={20} color={T.text2} /></TouchableOpacity>
+            <TouchableOpacity hitSlop={8}><Icon name="heart" size={20} color={T.text2} /></TouchableOpacity>
+            <TouchableOpacity hitSlop={8}><Icon name="share" size={20} color={T.text2} /></TouchableOpacity>
           </View>
         }
       />
-      <ScrollView contentContainerStyle={{ paddingBottom: myBid ? 24 : 100 }}>
-        {/* Gallery */}
-        <View style={styles.gallery}>
-          {imgUri ? (
-            <Image source={{ uri: imgUri }} style={styles.galleryImg} resizeMode="cover" />
-          ) : (
-            <Text style={styles.galleryEmoji}>{productIcon(item?.subcategoryName || item?.categoryName || item?.subcategory || item?.name)}</Text>
-          )}
+
+      <ScrollView contentContainerStyle={{ paddingBottom: myBid ? 24 : 100 }} showsVerticalScrollIndicator={false}>
+        {/* Compact Hero Card */}
+        <View style={styles.heroCardContainer}>
+          <View style={styles.compactHeroCard}>
+            {/* Left Image Box */}
+            <View style={styles.compactImgBox}>
+              {imgUri ? (
+                <Image source={{ uri: imgUri }} style={styles.compactImg} resizeMode="cover" />
+              ) : (
+                <Text style={styles.compactEmoji}>{productIcon(item.subcategoryName || item.categoryName || item.subcategory || item.name)}</Text>
+              )}
+              <View style={styles.verifiedStamp}>
+                <Icon name="shield" size={10} color="#fff" />
+                <Text style={styles.verifiedStampText}>Verified</Text>
+              </View>
+            </View>
+
+            {/* Right Info Box */}
+            {(() => {
+              const categoryVal = item.categoryName || item.category || 'Shrimp & Prawns';
+              const subcategoryVal = item.subcategoryName || item.subcategory || item.sub || 'Vannamei Shrimp';
+
+              return (
+                <View style={styles.compactHeroInfo}>
+                  {/* Status & Sale Type Row */}
+                  <View style={styles.compactStatusRow}>
+                    <StatusPill status={item.status || item.listingStatus || item.approvalStatus || 'Live'} />
+                    <View style={styles.saleTypeBadge}>
+                      <Text style={styles.saleTypeBadgeText}>⚡ {saleTypeVal}</Text>
+                    </View>
+                    <View style={{ flex: 1, alignItems: 'flex-end' }}>
+                      <CountdownTimer seedSeconds={item.id * 9341 + 2700} compact />
+                    </View>
+                  </View>
+
+                  {/* Listing Name */}
+                  <Text style={styles.itemName} numberOfLines={1}>{item.name || item.title || 'Seafood Listing'}</Text>
+
+                  {/* Category & Subcategory below Listing Name */}
+                  <View style={styles.categorySubRow}>
+                    <Text style={styles.categorySubText}>
+                      {categoryVal} <Text style={styles.dotSeparator}>•</Text> <Text style={styles.subTextBold}>{subcategoryVal}</Text>
+                    </Text>
+                  </View>
+
+                  {/* Grade, Freshness & Location Tag Row */}
+                  <View style={styles.tagRow}>
+                    {item.grade && (
+                      <View style={styles.gradeTag}>
+                        <Text style={styles.gradeTagText}>{item.grade.startsWith('Gr') ? item.grade : `Gr. ${item.grade}`}</Text>
+                      </View>
+                    )}
+                    {item.freshness && (
+                      <View style={styles.freshnessTag}>
+                        <Text style={styles.freshnessTagText}>❄️ {item.freshness === 'FreshOnIce' ? 'Fresh on Ice' : item.freshness}</Text>
+                      </View>
+                    )}
+                    <View style={styles.locRow}>
+                      <Icon name="mapPin" size={11} color={T.text3} />
+                      <Text style={styles.locText} numberOfLines={1}>{item.region || item.branchName || item.port || 'Kakinada Port'}</Text>
+                    </View>
+                  </View>
+                </View>
+              );
+            })()}
+          </View>
         </View>
 
         <View style={styles.body}>
-          {/* Status & Sale Type Row */}
+          {/* Executive Financial Metrics Bar */}
           {(() => {
-            const saleTypeVal = item?.saleType || item?.tradeType || item?.listingType || item?.type || 'Auction';
-            const categoryVal = item?.categoryName || item?.category || 'Shrimp & Prawns';
-            const subcategoryVal = item?.subcategoryName || item?.subcategory || item?.sub || 'Vannamei Shrimp';
+            const cleanUom = formatUom(item.uom || item.unit);
+            const rawQtyStr = item.quantity ? `${item.quantity} ${cleanUom}` : (item.quantityRemaining ? `${item.quantityRemaining} ${cleanUom}` : (item.qty ? String(item.qty).replace(/kilograms|\((?:kg|kgs)\)/gi, 'kg') : `100 ${cleanUom}`));
+            const qtyStr = rawQtyStr.replace(/kilograms/gi, 'kg').replace(/\(kg\)/gi, 'kg');
+            const qtyNum = parseFloat(String(item.quantity || item.quantityRemaining || item.qty || '0').replace(/[^0-9.]/g, '')) || 0;
+            const unitPriceNum = item.pricePerUnit ?? (item.priceNum ?? (item.price ? parseFloat(String(item.price).replace(/[^0-9.]/g, '')) : 0));
+            const totalVal = qtyNum * unitPriceNum;
+            const displayTotal = totalVal > 0 ? `₹${totalVal.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` : 'N/A';
+            const priceDisplay = item.pricePerUnit ? `₹${item.pricePerUnit.toFixed(2)}/${cleanUom}` : (item.priceNum ? `₹${item.priceNum}/${cleanUom}` : (item.price ? String(item.price).replace(/kilograms/gi, 'kg').replace(/\(kg\)/gi, 'kg') : '₹0.00'));
 
             return (
-              <>
-                <View style={styles.compactStatusRow}>
-                  <StatusPill status={item?.status || item?.listingStatus || item?.approvalStatus || 'Live'} />
-                  <View style={styles.saleTypeBadge}>
-                    <Text style={styles.saleTypeBadgeText}>⚡ {saleTypeVal}</Text>
-                  </View>
+              <View style={styles.metricsBar}>
+                <View style={styles.metricCell}>
+                  <Text style={styles.metricLabel}>Order Quantity</Text>
+                  <Text style={styles.metricValQty}>{qtyStr}</Text>
                 </View>
 
-                {/* Title + price */}
-                <View style={styles.titleRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.itemName}>{item?.name || item?.title || 'Seafood Listing'}</Text>
-                    <View style={styles.categorySubRow}>
-                      <Text style={styles.categorySubText}>
-                        {categoryVal} <Text style={styles.dotSeparator}>•</Text> <Text style={styles.subTextBold}>{subcategoryVal}</Text>
-                      </Text>
-                    </View>
-                  </View>
-                  <View style={styles.priceBlock}>
-                    <Text style={styles.priceLabel}>Starting at</Text>
-                    <Text style={styles.price}>₹{item?.priceNum || item?.pricePerUnit || '145'}</Text>
-                    <Text style={styles.uom}>per {formatUom(item?.uom)}</Text>
-                  </View>
+                <View style={[styles.metricCell, styles.metricBorder]}>
+                  <Text style={styles.metricLabel}>Starting Price</Text>
+                  <Text style={styles.metricValPrice}>{priceDisplay}</Text>
                 </View>
-              </>
+
+                <View style={styles.metricCell}>
+                  <Text style={styles.metricLabel}>Est. Total Value</Text>
+                  <Text style={styles.metricValGreen}>{displayTotal}</Text>
+                </View>
+              </View>
             );
           })()}
-
-          {/* Live bids strip */}
-          <View style={styles.bidStrip}>
-            <Text style={styles.bidStripText}>Currently <Text style={styles.bidCount}>{item?.bids || 6} bids</Text></Text>
-            <CountdownTimer seedSeconds={item ? item.id * 9341 + 2700 : 28800} compact />
-          </View>
 
           {/* Your bid */}
           {myBid && (
@@ -263,70 +326,6 @@ export const ItemDetailBuyerScreen: React.FC = () => {
             </View>
           )}
 
-          {/* Specs & Attributes Grid */}
-          {(() => {
-            const getParsedSpecifications = (itemData: any) => {
-              const specs: [string, string][] = [];
-
-              // 1. Quantity
-              const qtyStr = itemData?.quantity ? `${itemData.quantity} ${itemData.uom || 'kg'}` : (itemData?.quantityRemaining ? `${itemData.quantityRemaining} ${itemData.uom || 'kg'}` : (itemData?.qty || 'N/A'));
-              specs.push(['Quantity Available', String(qtyStr)]);
-
-              // 2. Count / Size
-              if (itemData?.countSize || itemData?.count || itemData?.size) {
-                specs.push(['Count / Size', String(itemData.countSize || itemData.count || itemData.size)]);
-              }
-
-              // 3. Processing & Packaging
-              if (itemData?.processing || itemData?.processingType) {
-                specs.push(['Processing', String(itemData.processing || itemData.processingType)]);
-              }
-              if (itemData?.packaging || itemData?.packagingType) {
-                specs.push(['Packaging', String(itemData.packaging || itemData.packagingType)]);
-              }
-
-              // 6. Dynamic API Specifications Array/Object
-              const rawSpecs = itemData?.specifications || itemData?.specs || itemData?.attributes;
-              if (Array.isArray(rawSpecs)) {
-                rawSpecs.forEach((s: any) => {
-                  if (s && typeof s === 'object') {
-                    const k = s.name || s.key || s.title || s.specKey;
-                    const v = s.value || s.val || s.specValue;
-                    if (k && v) specs.push([String(k), String(v)]);
-                  }
-                });
-              } else if (rawSpecs && typeof rawSpecs === 'object') {
-                Object.entries(rawSpecs).forEach(([k, v]) => {
-                  if (k && v !== undefined && v !== null) {
-                    specs.push([String(k), typeof v === 'object' ? JSON.stringify(v) : String(v)]);
-                  }
-                });
-              }
-
-              return specs;
-            };
-
-            const specList = getParsedSpecifications(item);
-
-            return (
-              <>
-                {specList.length > 0 && (
-                  <Card style={styles.infoCard}>
-                    <Text style={styles.specsHeaderTitle}>Item Specifications</Text>
-                    <View style={styles.infoGrid}>
-                      {specList.map(([k, v], i) => (
-                        <View key={`${k}_${i}`} style={styles.infoCell}>
-                          <Text style={styles.infoCellKey}>{k}</Text>
-                          <Text style={styles.infoCellVal}>{v}</Text>
-                        </View>
-                      ))}
-                    </View>
-                  </Card>
-                )}
-              </>
-            );
-          })()}
-
           {/* Dimensions Section */}
           {(() => {
             const getParsedDimensions = (itemData: any): [string, string][] => {
@@ -366,13 +365,13 @@ export const ItemDetailBuyerScreen: React.FC = () => {
             if (dimList.length === 0) return null;
 
             return (
-              <Card style={styles.infoCard}>
+              <Card style={styles.cardNoMargin}>
                 <Text style={styles.specsHeaderTitle}>Product Dimensions</Text>
-                <View style={styles.infoGrid}>
+                <View style={styles.grid}>
                   {dimList.map(([k, v], i) => (
-                    <View key={`${k}_${i}`} style={styles.infoCell}>
-                      <Text style={styles.infoCellKey}>{k}</Text>
-                      <Text style={styles.infoCellVal}>{v}</Text>
+                    <View key={`${k}_${i}`} style={styles.gridCell}>
+                      <Text style={styles.gridKey}>{k}</Text>
+                      <Text style={styles.gridVal}>{v}</Text>
                     </View>
                   ))}
                 </View>
@@ -380,41 +379,20 @@ export const ItemDetailBuyerScreen: React.FC = () => {
             );
           })()}
 
-          {/* Seller card — anonymized: buyer never sees seller's real identity */}
-          <Card style={styles.sellerCard}>
-            <View style={styles.sellerInner}>
-              <Avatar name={`Seller ${item?.id ?? ''}`} size={44} bg={T.green} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.sellerName}>Seller #{2030 + (item?.id ?? 0)}</Text>
-                <View style={styles.sellerMeta}>
-                  <Text style={styles.sellerRating}>★ 4.8</Text>
-                  <Text style={styles.sellerDeals}>43 deals</Text>
-                  <Text style={styles.sellerVerified}>✓ Verified</Text>
-                </View>
-              </View>
-              <TouchableOpacity style={styles.sellerProfileBtn}>
-                <Text style={styles.sellerProfileText}>Profile</Text>
-              </TouchableOpacity>
-            </View>
-          </Card>
-
-          {/* Location */}
-          <Card>
-            <View style={styles.locInner}>
-              <Icon name="mapPin" size={20} color={T.navy} />
-              <View>
-                <Text style={styles.locName}>{item?.region || 'West Godavari, AP'}</Text>
-                <Text style={styles.locDelivery}>Delivery available up to 120 km</Text>
-              </View>
-            </View>
-          </Card>
         </View>
       </ScrollView>
 
       {/* Sticky CTA — only when no bid placed yet */}
       {!myBid && (
         <View style={styles.cta}>
-          <Button label="Place a Bid" fullWidth onPress={() => nav.navigate('PlaceBid')} style={styles.ctaBtn} />
+          <Button
+            label={isDirectSale ? 'Buy Now' : 'Place a Bid'}
+            icon={isDirectSale ? 'basket' : 'gavel'}
+            variant={isDirectSale ? 'secondary' : 'primary'}
+            fullWidth
+            onPress={() => nav.navigate('PlaceBid')}
+            style={styles.ctaBtn}
+          />
         </View>
       )}
     </View>
@@ -423,47 +401,55 @@ export const ItemDetailBuyerScreen: React.FC = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: T.bg },
+  fallback: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
+  fallbackText: { fontSize: 14, color: T.text3 },
   headerRight: { flexDirection: 'row', gap: 8 },
-  gallery: { height: 220, backgroundColor: T.bg, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  galleryImg: { width: '100%', height: '100%' },
-  galleryEmoji: { fontSize: 90 },
-  body: { padding: 16, gap: 14 },
+
+  // COMPACT HERO CARD
+  heroCardContainer: { paddingHorizontal: 16, paddingTop: 14 },
+  compactHeroCard: { flexDirection: 'row', backgroundColor: T.card, borderRadius: 16, borderWidth: 1, borderColor: T.hairline, padding: 12, gap: 14, alignItems: 'center', elevation: 2, shadowColor: '#0F172A', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8 },
+  compactImgBox: { width: 104, height: 104, borderRadius: 12, backgroundColor: `${T.navy}08`, borderWidth: 1, borderColor: `${T.navy}15`, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
+  verifiedStamp: { position: 'absolute', bottom: 0, left: 0, right: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3, paddingVertical: 3, backgroundColor: 'rgba(0, 122, 32, 0.9)' },
+  verifiedStampText: { fontSize: 9, fontWeight: '800', color: '#fff', letterSpacing: 0.2 },
+  compactImg: { width: '100%', height: '100%' },
+  compactEmoji: { fontSize: 48 },
+  compactHeroInfo: { flex: 1, gap: 4 },
   compactStatusRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 },
   saleTypeBadge: { backgroundColor: `${T.navy}10`, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, borderWidth: 1, borderColor: `${T.navy}20` },
   saleTypeBadgeText: { fontSize: 11, fontWeight: '800', color: T.navy },
 
-  titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  itemName: { fontSize: 20, fontWeight: '900', color: T.text1 },
-  categorySubRow: { marginTop: 2, marginBottom: 2 },
+  itemName: { fontSize: 16, fontWeight: '900', color: T.text1, lineHeight: 21 },
+  categorySubRow: { marginTop: 1, marginBottom: 2 },
   categorySubText: { fontSize: 12, color: T.text2, fontWeight: '600' },
   dotSeparator: { color: T.text3, marginHorizontal: 2 },
   subTextBold: { color: T.navy, fontWeight: '800' },
-  itemSub: { fontSize: 14, color: T.text2, marginTop: 2 },
-  priceBlock: { alignItems: 'flex-end' },
-  priceLabel: { fontSize: 11, color: T.text3 },
-  price: { fontSize: 28, fontWeight: '900', color: T.navy },
-  uom: { fontSize: 12, color: T.text2 },
-  bidStrip: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 12, borderRadius: 10, backgroundColor: `${T.amber}12`, borderWidth: 1, borderColor: `${T.amber}30` },
-  bidStripText: { fontSize: 13, color: T.text2 },
-  bidCount: { fontWeight: '700', color: T.text1 },
-  infoCard: { marginBottom: 0, padding: 14 },
-  specsHeaderTitle: { fontSize: 13, fontWeight: '800', color: T.navy, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },
-  infoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  infoCell: { width: '47%' },
-  infoCellKey: { fontSize: 11, color: T.text3, fontWeight: '600', letterSpacing: 0.3 },
-  infoCellVal: { fontSize: 14, fontWeight: '700', color: T.text1, marginTop: 2 },
-  sellerCard: { marginBottom: 0 },
-  sellerInner: { padding: 14, flexDirection: 'row', gap: 12, alignItems: 'center' },
-  sellerName: { fontSize: 15, fontWeight: '700', color: T.text1 },
-  sellerMeta: { flexDirection: 'row', gap: 8, marginTop: 2 },
-  sellerRating: { fontSize: 12, color: T.amber },
-  sellerDeals: { fontSize: 12, color: T.text3 },
-  sellerVerified: { fontSize: 12, color: T.green, fontWeight: '600' },
-  sellerProfileBtn: { borderWidth: 1.5, borderColor: T.navy, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 },
-  sellerProfileText: { fontSize: 12, fontWeight: '700', color: T.navy },
-  locInner: { padding: 14, flexDirection: 'row', gap: 10, alignItems: 'center' },
-  locName: { fontSize: 14, fontWeight: '700', color: T.text1 },
-  locDelivery: { fontSize: 12, color: T.green },
+
+  tagRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginTop: 2 },
+  gradeTag: { backgroundColor: '#F1F5F9', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, borderWidth: 1, borderColor: '#CBD5E1' },
+  gradeTagText: { fontSize: 11, fontWeight: '700', color: T.text2 },
+  freshnessTag: { backgroundColor: '#3B82F615', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, borderWidth: 1, borderColor: '#3B82F635' },
+  freshnessTagText: { fontSize: 11, fontWeight: '700', color: '#1D4ED8' },
+  locRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  locText: { fontSize: 11, color: T.text3, fontWeight: '600', flexShrink: 1 },
+
+  body: { padding: 16, gap: 14 },
+
+  // METRICS BAR
+  metricsBar: { flexDirection: 'row', backgroundColor: T.card, borderRadius: 14, borderWidth: 1, borderColor: T.hairline, paddingVertical: 12, paddingHorizontal: 8, marginBottom: 2 },
+  metricCell: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  metricBorder: { borderLeftWidth: 1, borderRightWidth: 1, borderColor: T.hairline },
+  metricLabel: { fontSize: 10, fontWeight: '700', color: T.text3, textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 2 },
+  metricValQty: { fontSize: 15, fontWeight: '900', color: T.navy },
+  metricValPrice: { fontSize: 15, fontWeight: '900', color: T.navy },
+  metricValGreen: { fontSize: 15, fontWeight: '900', color: T.green },
+
+  cardNoMargin: { marginBottom: 0, padding: 14 },
+  specsHeaderTitle: { fontSize: 12, fontWeight: '800', color: T.navy, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  gridCell: { width: '48%', backgroundColor: '#F8FAFC', padding: 10, borderRadius: 10, borderWidth: 1, borderColor: '#E2E8F0' },
+  gridKey: { fontSize: 10, color: T.text3, fontWeight: '700', letterSpacing: 0.3, textTransform: 'uppercase' },
+  gridVal: { fontSize: 13, fontWeight: '800', color: T.text1, marginTop: 3 },
+
   cta: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 16, backgroundColor: T.card, borderTopWidth: 1, borderTopColor: T.hairline },
   ctaBtn: { height: 52, borderRadius: 14 },
 

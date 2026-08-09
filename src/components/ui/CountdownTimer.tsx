@@ -2,32 +2,72 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { T } from '../../constants/tokens';
 
-interface Props { seedSeconds: number; compact?: boolean; }
+interface Props { seedSeconds?: any; expiresAt?: string; compact?: boolean; }
 
-const fmt = (n: number) => String(n).padStart(2, '0');
-
-// Static cache to store the target expiration epoch timestamp for each seed.
-// This ensures that the countdown remains stable and continuously ticks down even when
-// components are unmounted, remounted, or updated due to filtering/searching.
-const targetCache: Record<number, number> = {};
-
-const getTargetTime = (seedSeconds: number) => {
-  if (!targetCache[seedSeconds]) {
-    targetCache[seedSeconds] = Date.now() + seedSeconds * 1000;
-  }
-  return targetCache[seedSeconds];
+const fmt = (n: number) => {
+  const safe = isNaN(n) || n < 0 ? 0 : Math.floor(n);
+  return String(safe).padStart(2, '0');
 };
 
-export const CountdownTimer: React.FC<Props> = ({ seedSeconds, compact = false }) => {
-  const targetTime = getTargetTime(seedSeconds);
-  const [secs, setSecs] = useState(() => Math.max(0, Math.floor((targetTime - Date.now()) / 1000)));
+export const resolveSeedSeconds = (seedInput?: any, expiresAt?: string): number => {
+  if (expiresAt) {
+    const t = new Date(expiresAt).getTime();
+    if (!isNaN(t)) {
+      const remaining = Math.max(0, Math.floor((t - Date.now()) / 1000));
+      return remaining;
+    }
+  }
+
+  if (typeof seedInput === 'number' && !isNaN(seedInput)) {
+    return Math.abs(Math.floor(seedInput)) || 14400;
+  }
+
+  if (typeof seedInput === 'string' && seedInput.trim()) {
+    const parsed = Number(seedInput);
+    if (!isNaN(parsed)) {
+      return Math.abs(Math.floor(parsed)) || 14400;
+    }
+    let hash = 0;
+    for (let i = 0; i < seedInput.length; i++) {
+      hash = (hash << 5) - hash + seedInput.charCodeAt(i);
+      hash |= 0;
+    }
+    return (Math.abs(hash) % 70000) + 3600;
+  }
+
+  return 14400;
+};
+
+// Static cache to store the target expiration epoch timestamp for each seed.
+const targetCache: Record<string, number> = {};
+
+const getTargetTime = (seedSecondsInput?: any, expiresAt?: string) => {
+  const safeSeconds = resolveSeedSeconds(seedSecondsInput, expiresAt);
+  const cacheKey = expiresAt || String(seedSecondsInput || safeSeconds);
+
+  if (!targetCache[cacheKey]) {
+    targetCache[cacheKey] = Date.now() + safeSeconds * 1000;
+  }
+  return targetCache[cacheKey];
+};
+
+export const CountdownTimer: React.FC<Props> = ({ seedSeconds, expiresAt, compact = false }) => {
+  const targetTime = getTargetTime(seedSeconds, expiresAt);
+  const [secs, setSecs] = useState(() => {
+    const diff = Math.max(0, Math.floor((targetTime - Date.now()) / 1000));
+    return isNaN(diff) ? 14400 : diff;
+  });
 
   useEffect(() => {
-    // Synchronize initial state if the target time changes
-    setSecs(Math.max(0, Math.floor((targetTime - Date.now()) / 1000)));
+    const calcRemaining = () => {
+      const remaining = Math.max(0, Math.floor((targetTime - Date.now()) / 1000));
+      return isNaN(remaining) ? 0 : remaining;
+    };
+
+    setSecs(calcRemaining());
 
     const t = setInterval(() => {
-      const remaining = Math.max(0, Math.floor((targetTime - Date.now()) / 1000));
+      const remaining = calcRemaining();
       setSecs(remaining);
       if (remaining === 0) {
         clearInterval(t);
@@ -37,15 +77,16 @@ export const CountdownTimer: React.FC<Props> = ({ seedSeconds, compact = false }
     return () => clearInterval(t);
   }, [targetTime]);
 
-  const h = Math.floor(secs / 3600);
-  const m = Math.floor((secs % 3600) / 60);
-  const s = secs % 60;
-  const isUrgent = secs < 3600;
-  const isWarning = secs < 7200;
+  const safeSecs = isNaN(secs) ? 0 : secs;
+  const h = Math.floor(safeSecs / 3600);
+  const m = Math.floor((safeSecs % 3600) / 60);
+  const s = safeSecs % 60;
+  const isUrgent = safeSecs < 3600;
+  const isWarning = safeSecs < 7200;
 
-  const color = secs === 0 ? T.text3 : isUrgent ? T.danger : isWarning ? T.amber : T.green;
-  const bg    = secs === 0 ? T.bg    : isUrgent ? `${T.danger}20` : isWarning ? `${T.amber}20` : `${T.green}18`;
-  const label = secs === 0 ? 'Expired' : `${fmt(h)}:${fmt(m)}:${fmt(s)}`;
+  const color = safeSecs === 0 ? T.text3 : isUrgent ? T.danger : isWarning ? T.amber : T.green;
+  const bg    = safeSecs === 0 ? T.bg    : isUrgent ? `${T.danger}20` : isWarning ? `${T.amber}20` : `${T.green}18`;
+  const label = safeSecs === 0 ? 'Expired' : `${fmt(h)}:${fmt(m)}:${fmt(s)}`;
 
   if (compact) {
     return (

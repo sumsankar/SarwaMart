@@ -1,5 +1,6 @@
-import React, { useState, useMemo } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, TextInput, StyleSheet, Modal } from 'react-native';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, TextInput, StyleSheet, Modal, Image, Platform, ActivityIndicator, RefreshControl } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParams } from '../../navigation/RootNavigator';
@@ -16,6 +17,68 @@ import { useAppStore } from '../../store/appStore';
 
 type Nav = NativeStackNavigationProp<RootStackParams>;
 
+const getApiUrl = (endpoint: string, base: string) => {
+  const cleanBase = base.endsWith('/') ? base.slice(0, -1) : base;
+  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  let resolvedBase = cleanBase;
+  if (Platform.OS === 'android') {
+    if (resolvedBase.includes('localhost')) {
+      resolvedBase = resolvedBase.replace('localhost', '10.0.2.2');
+    } else if (resolvedBase.includes('127.0.0.1')) {
+      resolvedBase = resolvedBase.replace('127.0.0.1', '10.0.2.2');
+    }
+  }
+  return `${resolvedBase}${cleanEndpoint}`;
+};
+
+const formatUom = (uomStr?: string): string => {
+  if (!uomStr) return 'kg';
+  let s = String(uomStr).trim();
+  s = s.replace(/kilograms?\s*\((?:kg|kgs)\)/gi, 'kg');
+  s = s.replace(/kilograms?/gi, 'kg');
+  s = s.replace(/\((?:kg|kgs)\)/gi, 'kg');
+  s = s.replace(/^\(|\)$/g, '').trim();
+  if (s.toLowerCase() === 'kg' || s.toLowerCase() === 'kgs') return 'kg';
+  if (s.toLowerCase() === 'tonnes' || s.toLowerCase() === 'tons' || s.toLowerCase() === 'tonne' || s.toLowerCase() === 'ton') return 'ton';
+  if (s.toLowerCase() === 'quintals' || s.toLowerCase() === 'quintal') return 'quintal';
+  return s || 'kg';
+};
+
+const getItemImageUri = (item: any): string | null => {
+  if (!item) return null;
+  if (typeof item.imageUrl === 'string' && item.imageUrl) return item.imageUrl;
+  if (typeof item.defaultImageThumbnailUrl === 'string' && item.defaultImageThumbnailUrl) return item.defaultImageThumbnailUrl;
+  if (typeof item.thumbnailUrl === 'string' && item.thumbnailUrl) return item.thumbnailUrl;
+  if (typeof item.defaultImageUrl === 'string' && item.defaultImageUrl) return item.defaultImageUrl;
+  if (typeof item.coverImageUrl === 'string' && item.coverImageUrl) return item.coverImageUrl;
+  if (typeof item.primaryImageUrl === 'string' && item.primaryImageUrl) return item.primaryImageUrl;
+
+  if (typeof item.img === 'string' && item.img) {
+    if (item.img.startsWith('http') || item.img.startsWith('data:') || item.img.includes('/images/') || item.img.includes('.jpg') || item.img.includes('.png')) {
+      return item.img;
+    }
+  }
+
+  if (Array.isArray(item.images) && item.images.length > 0) {
+    const coverObj = item.images.find((img: any) => img && (img.isCover || img.isDefault || img.isPrimary));
+    const targetObj = coverObj || item.images[0];
+    if (typeof targetObj === 'string') {
+      return targetObj.startsWith('data:') || targetObj.startsWith('http') || targetObj.includes('/images/')
+        ? targetObj
+        : `data:image/jpeg;base64,${targetObj}`;
+    }
+    if (targetObj && typeof targetObj === 'object') {
+      const url = targetObj.imageUrl || targetObj.url || targetObj.thumbnailUrl || targetObj.defaultImageUrl || targetObj.imagePath;
+      if (url && typeof url === 'string') return url;
+      const base64 = targetObj.base64Data || targetObj.base64 || targetObj.data;
+      if (base64 && typeof base64 === 'string') {
+        return base64.startsWith('data:') ? base64 : `data:image/jpeg;base64,${base64}`;
+      }
+    }
+  }
+  return null;
+};
+
 const STATUS_OPTIONS = ['All', 'Live', 'Sold', 'Expired'];
 const CATEGORY_OPTIONS = ['All', 'Fish', 'Prawn', 'Crab', 'Lobster', 'Squid'];
 const GRADE_OPTIONS = ['All', 'A', 'B'];
@@ -26,11 +89,117 @@ const DEFAULT_FILTERS: Filters = { status: 'All', category: 'All', grade: 'All',
 
 export const BuyerHomeScreen: React.FC = () => {
   const nav = useNavigation<Nav>();
-  const { setSelectedItem, setSelectedRequest } = useAppStore();
+  const { token, apiBaseUrl, setSelectedItem, setSelectedRequest } = useAppStore();
   const [search, setSearch] = useState('');
   const [filterOpen, setFilterOpen] = useState(false);
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
   const [draft, setDraft] = useState<Filters>(DEFAULT_FILTERS);
+
+  // API Data state for top 10 live seller listings across sellers
+  const [topLiveListings, setTopLiveListings] = useState<any[]>(SELLER_ITEMS.slice(0, 10));
+  const [loadingListings, setLoadingListings] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const extractItemsList = (data: any): any[] => {
+    if (!data) return [];
+    if (Array.isArray(data)) return data;
+    if (Array.isArray(data.items)) return data.items;
+    if (Array.isArray(data.data)) return data.data;
+    if (Array.isArray(data.listings)) return data.listings;
+    if (Array.isArray(data.result)) return data.result;
+    if (Array.isArray(data.value)) return data.value;
+    if (Array.isArray(data.topListings)) return data.topListings;
+    if (Array.isArray(data.top)) return data.top;
+
+    if (typeof data === 'object') {
+      if (data.id || data.name || data.title) return [data];
+      for (const key of Object.keys(data)) {
+        const val = data[key];
+        if (Array.isArray(val) && val.length > 0) return val;
+        if (val && typeof val === 'object') {
+          if (Array.isArray(val.items)) return val.items;
+          if (Array.isArray(val.data)) return val.data;
+          if (Array.isArray(val.listings)) return val.listings;
+        }
+      }
+    }
+    return [];
+  };
+
+  // Fetch top 10 live seller listings across multiple sellers
+  const fetchTopLiveListings = useCallback(async () => {
+    setLoadingListings(true);
+    try {
+      const storedToken = token ||
+        (await AsyncStorage.getItem('sm_access_token')) ||
+        (await AsyncStorage.getItem('sm_auth_token')) ||
+        (await AsyncStorage.getItem('sm_token'));
+
+      let itemsList: any[] = [];
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (storedToken) headers['Authorization'] = `Bearer ${storedToken}`;
+
+      // 1. Try GET /api/v1/listings?page=1&pageSize=10&status=Live
+      try {
+        const liveUrl = getApiUrl('/api/v1/listings?page=1&pageSize=10&status=Live', apiBaseUrl);
+        console.log(`[BuyerHomeScreen] 🚀 GET TOP LIVE LISTINGS: ${liveUrl}`);
+        const liveRes = await fetch(liveUrl, { headers });
+        if (liveRes.ok) {
+          const liveData = await liveRes.json().catch(() => null);
+          itemsList = extractItemsList(liveData);
+          console.log(`[BuyerHomeScreen] Extracted ${itemsList.length} live listings from /api/v1/listings`);
+        }
+      } catch (e) {
+        console.warn('[BuyerHomeScreen] Error fetching /api/v1/listings:', e);
+      }
+
+      // 2. Fallback to GET /api/v1/listings/public?page=1&pageSize=10
+      if (itemsList.length === 0) {
+        try {
+          const pubUrl = getApiUrl('/api/v1/listings/public?page=1&pageSize=10', apiBaseUrl);
+          console.log(`[BuyerHomeScreen] 🔄 GET PUBLIC LISTINGS: ${pubUrl}`);
+          const pubRes = await fetch(pubUrl);
+          if (pubRes.ok) {
+            const pubData = await pubRes.json().catch(() => null);
+            itemsList = extractItemsList(pubData);
+            console.log(`[BuyerHomeScreen] Extracted ${itemsList.length} public listings`);
+          }
+        } catch (e) {
+          console.warn('[BuyerHomeScreen] Error fetching public listings:', e);
+        }
+      }
+
+      // 3. Fallback to GET /api/v1/listings/top
+      if (itemsList.length === 0) {
+        try {
+          const topUrl = getApiUrl('/api/v1/listings/top', apiBaseUrl);
+          const topRes = await fetch(topUrl, { headers });
+          if (topRes.ok) {
+            const topData = await topRes.json().catch(() => null);
+            itemsList = extractItemsList(topData);
+          }
+        } catch (e) {}
+      }
+
+      if (itemsList.length > 0) {
+        setTopLiveListings(itemsList.slice(0, 10));
+      }
+    } catch (err) {
+      console.warn('[BuyerHomeScreen] Error fetching live listings across sellers:', err);
+    } finally {
+      setLoadingListings(false);
+      setRefreshing(false);
+    }
+  }, [token, apiBaseUrl]);
+
+  useEffect(() => {
+    fetchTopLiveListings();
+  }, [fetchTopLiveListings]);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchTopLiveListings();
+  };
 
   const activeFilterCount =
     (filters.status !== 'All' ? 1 : 0) +
@@ -44,14 +213,18 @@ export const BuyerHomeScreen: React.FC = () => {
 
   const q = search.trim().toLowerCase();
   const filteredItems = useMemo(() => {
-    return SELLER_ITEMS.filter(i => i.status === 'live').filter(i => {
-      if (q && !(i.name.toLowerCase().includes(q) || i.sub.toLowerCase().includes(q) || i.region.toLowerCase().includes(q))) return false;
-      if (filters.category !== 'All' && i.sub.toLowerCase() !== filters.category.toLowerCase()) return false;
-      if (filters.grade !== 'All' && i.grade !== filters.grade) return false;
-      if (filters.freshness !== 'All' && i.freshness !== filters.freshness) return false;
+    return topLiveListings.filter(i => {
+      const nameStr = String(i.name || i.title || '').toLowerCase();
+      const subStr = String(i.subcategoryName || i.categoryName || i.subcategory || i.category || i.sub || '').toLowerCase();
+      const regionStr = String(i.region || i.branchName || i.port || '').toLowerCase();
+
+      if (q && !(nameStr.includes(q) || subStr.includes(q) || regionStr.includes(q))) return false;
+      if (filters.category !== 'All' && !subStr.includes(filters.category.toLowerCase())) return false;
+      if (filters.grade !== 'All' && String(i.grade || '').toLowerCase() !== filters.grade.toLowerCase()) return false;
       return true;
     });
-  }, [q, filters]);
+  }, [topLiveListings, q, filters]);
+
   const filteredRequests = useMemo(() => {
     return MY_REQUESTS.filter(r => {
       if (q && !(r.product.toLowerCase().includes(q) || r.sub.toLowerCase().includes(q) || r.loc.toLowerCase().includes(q))) return false;
@@ -97,7 +270,12 @@ export const BuyerHomeScreen: React.FC = () => {
         </View>
       </View>
 
-      <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        style={{ flex: 1 }}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[T.navy]} tintColor={T.navy} />}
+      >
         {/* Quick actions */}
         <View style={styles.quickActions}>
           {[
@@ -112,64 +290,140 @@ export const BuyerHomeScreen: React.FC = () => {
           ))}
         </View>
 
-        {/* Items for Bid — navy/seller-inventory theme, top 10 */}
+        {/* Items for Bid — top 10 live listings across sellers */}
         <SectionHeader
-          title="Items for Bid"
+          title="Items for Bid (Top 10 Live)"
           accent="navy"
-          badge={{ label: 'Live now', color: 'navy' }}
+          badge={{ label: `${filteredItems.length} Live`, color: 'navy' }}
           onSeeAll={() => nav.navigate('ItemsForBidList')}
         />
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hScroll}>
-          {filteredItems.length === 0 && (
-            <EmptyState
-              compact
-              title={q ? `No items match “${search}”` : 'No items match these filters'}
-              subtitle="Try a different search or adjust your filters."
-              showClear={!!q || activeFilterCount > 0}
-              onClear={() => { setSearch(''); setFilters(DEFAULT_FILTERS); }}
-            />
-          )}
-          {filteredItems.slice(0, 10).map(item => (
-            <TouchableOpacity key={item.id} onPress={() => { setSelectedItem(item); nav.navigate('ItemDetailBuyer'); }} style={styles.itemCard} activeOpacity={0.85}>
-              <View style={styles.itemAccent} />
-              <View style={styles.itemImg}>
-                <Text style={styles.itemEmoji}>{item.img}</Text>
-                {item.bids > 0 && (
-                  <View style={styles.itemBidsBadge}>
-                    <Icon name="gavel" size={10} color="#fff" />
-                    <Text style={styles.itemBidsBadgeText}>{item.bids}</Text>
+        {loadingListings && topLiveListings.length === 0 ? (
+          <View style={{ paddingVertical: 24, alignItems: 'center' }}>
+            <ActivityIndicator size="small" color={T.navy} />
+            <Text style={{ fontSize: 12, color: T.text3, marginTop: 6 }}>Loading live listings...</Text>
+          </View>
+        ) : (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hScroll}>
+            {filteredItems.length === 0 && (
+              <EmptyState
+                compact
+                title={q ? `No items match “${search}”` : 'No items match these filters'}
+                subtitle="Try a different search or adjust your filters."
+                showClear={!!q || activeFilterCount > 0}
+                onClear={() => { setSearch(''); setFilters(DEFAULT_FILTERS); }}
+              />
+            )}
+            {filteredItems.slice(0, 10).map((item, idx) => {
+              const imgUri = getItemImageUri(item);
+              const nameStr = item.name || item.title || 'Seafood Listing';
+              const subStr = item.subcategoryName || item.categoryName || item.subcategory || item.category || item.sub || 'Seafood';
+              const saleTypeVal = item.saleType || item.tradeType || item.listingType || item.type || 'Auction';
+              const isDirectSale = saleTypeVal === 'DirectSale';
+              const cleanUom = formatUom(item.uom || item.unit);
+              const qtyStr = item.quantity ? `${item.quantity} ${cleanUom}` : (item.quantityRemaining ? `${item.quantityRemaining} ${cleanUom}` : (item.qty || `100 ${cleanUom}`));
+              const locStr = item.region || item.branchName || item.port || item.destinationRegion || 'Kakinada Port';
+              const priceDisplay = item.pricePerUnit ? `₹${Number(item.pricePerUnit).toFixed(2)}/${cleanUom}` : (item.price || (item.startingPrice ? `₹${item.startingPrice}/${cleanUom}` : '₹0.00'));
+              const bidCount = item.bids ?? item.bidCount ?? 0;
+              const gradeStr = item.grade ? (item.grade.startsWith('Gr') ? item.grade : `Gr. ${item.grade}`) : 'Gr. A';
+              const freshnessStr = item.freshness === 'FreshOnIce' ? 'Fresh on Ice' : (item.freshness || 'Fresh on ice');
+
+              const qtyNum = parseFloat(String(item.quantity || item.quantityRemaining || item.qty || '0').replace(/[^0-9.]/g, '')) || 0;
+              const unitPriceNum = item.pricePerUnit ?? (item.priceNum ?? (item.startingPrice ?? (item.price ? parseFloat(String(item.price).replace(/[^0-9.]/g, '')) : 0)));
+              const totalVal = qtyNum * unitPriceNum;
+              const totalValDisplay = totalVal > 0 ? `₹${totalVal.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` : null;
+
+              return (
+                <TouchableOpacity
+                  key={item.id || item.listingId || `item_${idx}`}
+                  onPress={() => { setSelectedItem(item); nav.navigate('ItemDetailBuyer'); }}
+                  style={styles.itemCard}
+                  activeOpacity={0.88}
+                >
+                  {/* Top Image Container */}
+                  <View style={styles.itemImg}>
+                    {imgUri ? (
+                      <Image source={{ uri: imgUri }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                    ) : (
+                      <Text style={styles.itemEmoji}>{productIcon(subStr || nameStr)}</Text>
+                    )}
+
+                    {/* Sale Type Badge (Top Left) */}
+                    <View style={styles.saleTypePill}>
+                      <Text style={styles.saleTypePillText}>⚡ {saleTypeVal}</Text>
+                    </View>
+
+                    {/* Bids Count Badge (Top Right) */}
+                    {bidCount > 0 && (
+                      <View style={styles.itemBidsBadge}>
+                        <Icon name="gavel" size={10} color="#fff" />
+                        <Text style={styles.itemBidsBadgeText}>{bidCount} Bids</Text>
+                      </View>
+                    )}
                   </View>
-                )}
-              </View>
-              <View style={styles.itemBody}>
-                <Text style={styles.itemName} numberOfLines={1}>{item.name}</Text>
-                <Text style={styles.itemSub}>{item.sub} · {item.qty}</Text>
-                <View style={styles.itemLocRow}>
-                  <Icon name="mapPin" size={11} color={T.text3} />
-                  <Text style={styles.itemLocText} numberOfLines={1}>{item.region}</Text>
-                </View>
-                <View style={styles.itemPriceRow}>
-                  <Text style={styles.itemPrice}>{item.price}</Text>
-                  <CountdownTimer seedSeconds={item.id * 9341 + 2700} compact />
-                </View>
-                <View style={styles.itemTagsRow}>
-                  <View style={styles.itemTag}>
-                    <Icon name="shield" size={10} color={T.navy} />
-                    <Text style={styles.itemTagText}>Gr. {item.grade}</Text>
+
+                  {/* Card Content Body */}
+                  <View style={styles.itemBody}>
+                    {/* Title */}
+                    <Text style={styles.itemName} numberOfLines={1}>{nameStr}</Text>
+
+                    {/* Species & Quantity Subtitle */}
+                    <Text style={styles.itemSub} numberOfLines={1}>{subStr} · {qtyStr}</Text>
+
+                    {/* Operating Region / Location */}
+                    <View style={styles.itemLocRow}>
+                      <Icon name="mapPin" size={11} color={T.text3} />
+                      <Text style={styles.itemLocText} numberOfLines={1}>{locStr}</Text>
+                    </View>
+
+                    {/* Financial Metrics Mini Ribbon */}
+                    <View style={styles.cardMetricsBox}>
+                      <View style={styles.cardMetricCell}>
+                        <Text style={styles.cardMetricLabel}>Starting Rate</Text>
+                        <Text style={styles.itemPrice}>{priceDisplay}</Text>
+                      </View>
+
+                      {totalValDisplay && (
+                        <View style={[styles.cardMetricCell, styles.cardMetricBorder]}>
+                          <Text style={styles.cardMetricLabel}>Est. Total</Text>
+                          <Text style={styles.cardMetricTotalVal}>{totalValDisplay}</Text>
+                        </View>
+                      )}
+                    </View>
+
+                    {/* Tags & Timer Row */}
+                    <View style={styles.itemTagsRow}>
+                      <View style={styles.itemTag}>
+                        <Text style={styles.itemTagText}>{gradeStr}</Text>
+                      </View>
+                      <View style={styles.freshTag}>
+                        <Text style={styles.freshTagText}>{freshnessStr}</Text>
+                      </View>
+                      <View style={{ flex: 1, alignItems: 'flex-end' }}>
+                        <CountdownTimer
+                          expiresAt={item.expiresAt || item.expiryDate || item.expirationDate}
+                          seedSeconds={item.id || item.listingId || idx}
+                          compact
+                        />
+                      </View>
+                    </View>
+
+                    <View style={styles.itemDivider} />
+
+                    {/* CTA Button */}
+                    <TouchableOpacity
+                      onPress={() => { setSelectedItem(item); nav.navigate('PlaceBid'); }}
+                      style={[styles.placeBidBtn, isDirectSale && styles.buyNowBtn]}
+                      activeOpacity={0.85}
+                    >
+                      <Icon name={isDirectSale ? 'basket' : 'gavel'} size={13} color={isDirectSale ? T.navy : '#fff'} />
+                      <Text style={[styles.placeBidBtnText, isDirectSale && styles.buyNowBtnText]}>{isDirectSale ? 'Buy Now' : 'Place a Bid'}</Text>
+                    </TouchableOpacity>
                   </View>
-                  <View style={styles.itemTag}>
-                    <Text style={styles.itemTagText}>{item.freshness}</Text>
-                  </View>
-                </View>
-                <View style={styles.itemDivider} />
-                <TouchableOpacity onPress={() => { setSelectedItem(item); nav.navigate('PlaceBid'); }} style={styles.placeBidBtn} activeOpacity={0.85}>
-                  <Icon name="gavel" size={13} color="#fff" />
-                  <Text style={styles.placeBidBtnText}>Place a Bid</Text>
                 </TouchableOpacity>
-              </View>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+              );
+            })}
+          </ScrollView>
+        )}
 
         {/* My Requests — amber/your-posts theme, horizontal carousel */}
         <SectionHeader
@@ -311,25 +565,37 @@ const styles = StyleSheet.create({
   hScroll: { paddingLeft: 16, paddingRight: 16, paddingBottom: 16, gap: 12 },
 
   // Items for Bid card — navy theme
-  itemCard: { width: 240, borderRadius: 14, backgroundColor: T.card, borderWidth: 1, borderColor: T.cardBorder, ...T.shadowSoft },
-  itemAccent: { height: 3, backgroundColor: T.navy, borderTopLeftRadius: 14, borderTopRightRadius: 14 },
-  itemImg: { height: 100, backgroundColor: `${T.navy}08`, alignItems: 'center', justifyContent: 'center', position: 'relative', borderTopLeftRadius: 14, borderTopRightRadius: 14 },
+  itemCard: { width: 248, borderRadius: 16, backgroundColor: T.card, borderWidth: 1, borderColor: '#E2E8F0', overflow: 'hidden', ...T.shadowSoft },
+  itemImg: { height: 110, backgroundColor: `${T.navy}08`, alignItems: 'center', justifyContent: 'center', position: 'relative' },
   itemEmoji: { fontSize: 52 },
-  itemBidsBadge: { position: 'absolute', top: 8, right: 8, flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: `${T.amber}E8`, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 8 },
+  saleTypePill: { position: 'absolute', top: 8, left: 8, backgroundColor: 'rgba(15, 23, 42, 0.85)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' },
+  saleTypePillText: { fontSize: 10, fontWeight: '800', color: '#fff' },
+  itemBidsBadge: { position: 'absolute', top: 8, right: 8, flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: T.amber, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
   itemBidsBadgeText: { fontSize: 10, fontWeight: '800', color: '#fff' },
   itemBody: { padding: 12, gap: 6 },
   itemName: { fontSize: 15, fontWeight: '800', color: T.text1 },
   itemSub: { fontSize: 11, color: T.text2, fontWeight: '600' },
   itemLocRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   itemLocText: { fontSize: 11, color: T.text3, flexShrink: 1 },
-  itemPriceRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 6, marginTop: 2 },
-  itemPrice: { fontSize: 17, fontWeight: '900', color: T.navy, fontVariant: ['tabular-nums'] },
-  itemTagsRow: { flexDirection: 'row', gap: 5, flexWrap: 'wrap' },
-  itemTag: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6, backgroundColor: `${T.navy}08`, borderWidth: 1, borderColor: `${T.navy}20` },
-  itemTagText: { fontSize: 10, fontWeight: '700', color: T.navy },
-  itemDivider: { height: 1, backgroundColor: T.hairline, marginTop: 2 },
-  placeBidBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, height: 36, borderRadius: 10, backgroundColor: T.amber },
+
+  cardMetricsBox: { flexDirection: 'row', backgroundColor: '#F8FAFC', padding: 8, borderRadius: 10, borderWidth: 1, borderColor: '#E2E8F0', marginTop: 2 },
+  cardMetricCell: { flex: 1 },
+  cardMetricBorder: { borderLeftWidth: 1, borderColor: '#E2E8F0', paddingLeft: 8 },
+  cardMetricLabel: { fontSize: 9, fontWeight: '700', color: T.text3, textTransform: 'uppercase', letterSpacing: 0.3 },
+  itemPrice: { fontSize: 14, fontWeight: '900', color: T.navy, marginTop: 1, fontVariant: ['tabular-nums'] },
+  cardMetricTotalVal: { fontSize: 14, fontWeight: '900', color: T.green, marginTop: 1, fontVariant: ['tabular-nums'] },
+
+  itemTagsRow: { flexDirection: 'row', gap: 5, alignItems: 'center', marginTop: 2 },
+  itemTag: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, backgroundColor: '#F1F5F9', borderWidth: 1, borderColor: '#CBD5E1' },
+  itemTagText: { fontSize: 10, fontWeight: '700', color: T.text2 },
+  freshTag: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, backgroundColor: '#3B82F615', borderWidth: 1, borderColor: '#3B82F635' },
+  freshTagText: { fontSize: 10, fontWeight: '700', color: '#1D4ED8' },
+
+  itemDivider: { height: 1, backgroundColor: T.hairline, marginVertical: 2 },
+  placeBidBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, height: 38, borderRadius: 10, backgroundColor: T.amber },
   placeBidBtnText: { color: '#fff', fontSize: 13, fontWeight: '800' },
+  buyNowBtn: { backgroundColor: 'transparent', borderWidth: 1.5, borderColor: T.navy },
+  buyNowBtnText: { color: T.navy },
 
   // My Requests card — amber theme
   addReqTile: { width: 120, borderRadius: 14, borderWidth: 2, borderColor: `${T.amber}50`, borderStyle: 'dashed', backgroundColor: `${T.amber}10`, alignItems: 'center', justifyContent: 'center', gap: 10 },
