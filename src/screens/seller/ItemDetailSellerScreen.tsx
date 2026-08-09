@@ -1,5 +1,6 @@
-import React, { useMemo, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
+import React, { useMemo, useState, useEffect } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Image, Platform, ActivityIndicator } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParams } from '../../navigation/RootNavigator';
@@ -16,6 +17,82 @@ import { useAppStore } from '../../store/appStore';
 
 type Nav = NativeStackNavigationProp<RootStackParams>;
 
+const getApiUrl = (endpoint: string, base: string) => {
+  const cleanBase = base.endsWith('/') ? base.slice(0, -1) : base;
+  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  let resolvedBase = cleanBase;
+  if (Platform.OS === 'android') {
+    if (resolvedBase.includes('localhost')) {
+      resolvedBase = resolvedBase.replace('localhost', '10.0.2.2');
+    } else if (resolvedBase.includes('127.0.0.1')) {
+      resolvedBase = resolvedBase.replace('127.0.0.1', '10.0.2.2');
+    }
+  }
+  return `${resolvedBase}${cleanEndpoint}`;
+};
+
+const formatUom = (uomStr?: string): string => {
+  if (!uomStr) return 'kg';
+  let s = String(uomStr).trim();
+  s = s.replace(/kilograms?\s*\((?:kg|kgs)\)/gi, 'kg');
+  s = s.replace(/kilograms?/gi, 'kg');
+  s = s.replace(/\((?:kg|kgs)\)/gi, 'kg');
+  s = s.replace(/^\(|\)$/g, '').trim();
+  if (s.toLowerCase() === 'kg' || s.toLowerCase() === 'kgs') return 'kg';
+  if (s.toLowerCase() === 'tonnes' || s.toLowerCase() === 'tons' || s.toLowerCase() === 'tonne' || s.toLowerCase() === 'ton') return 'ton';
+  if (s.toLowerCase() === 'quintals' || s.toLowerCase() === 'quintal') return 'quintal';
+  return s || 'kg';
+};
+
+const getItemImageUri = (item: any): string | null => {
+  if (!item) return null;
+
+  if (typeof item.imageUrl === 'string' && item.imageUrl) return item.imageUrl;
+  if (typeof item.defaultImageThumbnailUrl === 'string' && item.defaultImageThumbnailUrl) return item.defaultImageThumbnailUrl;
+  if (typeof item.thumbnailUrl === 'string' && item.thumbnailUrl) return item.thumbnailUrl;
+  if (typeof item.defaultImageUrl === 'string' && item.defaultImageUrl) return item.defaultImageUrl;
+  if (typeof item.coverImageUrl === 'string' && item.coverImageUrl) return item.coverImageUrl;
+  if (typeof item.primaryImageUrl === 'string' && item.primaryImageUrl) return item.primaryImageUrl;
+
+  if (typeof item.img === 'string' && item.img) {
+    if (item.img.startsWith('http') || item.img.startsWith('data:') || item.img.includes('/images/') || item.img.includes('.jpg') || item.img.includes('.png')) {
+      return item.img;
+    }
+  }
+
+  if (Array.isArray(item.images) && item.images.length > 0) {
+    const coverObj = item.images.find((img: any) => img && (img.isCover || img.isDefault || img.isPrimary));
+    const targetObj = coverObj || item.images[0];
+
+    if (typeof targetObj === 'string') {
+      return targetObj.startsWith('data:') || targetObj.startsWith('http') || targetObj.includes('/images/')
+        ? targetObj
+        : `data:image/jpeg;base64,${targetObj}`;
+    }
+
+    if (targetObj && typeof targetObj === 'object') {
+      const url = targetObj.imageUrl || targetObj.url || targetObj.thumbnailUrl || targetObj.defaultImageUrl || targetObj.imagePath;
+      if (url && typeof url === 'string') return url;
+
+      const base64 = targetObj.base64Data || targetObj.base64 || targetObj.data;
+      if (base64 && typeof base64 === 'string') {
+        return base64.startsWith('data:') ? base64 : `data:image/jpeg;base64,${base64}`;
+      }
+    }
+  }
+
+  return null;
+};
+
+const productIcon = (nameStr?: string) => {
+  const n = String(nameStr || '').toLowerCase();
+  if (n.includes('prawn') || n.includes('shrimp') || n.includes('vannamei')) return '🦐';
+  if (n.includes('crab')) return '🦀';
+  if (n.includes('lobster')) return '🦞';
+  if (n.includes('squid')) return '🦑';
+  return '🐟';
+};
+
 const STATUS_COLOR: Record<ItemBid['status'], { bg: string; fg: string; label: string }> = {
   pending:     { bg: '#FFF3E0', fg: '#BA7517', label: 'Pending' },
   negotiating: { bg: '#E8F0FE', fg: '#1B5E9C', label: 'Negotiating' },
@@ -26,8 +103,55 @@ const STATUS_COLOR: Record<ItemBid['status'], { bg: string; fg: string; label: s
 
 export const ItemDetailSellerScreen: React.FC = () => {
   const nav = useNavigation<Nav>();
-  const { selectedItem: item, showToast } = useAppStore();
+  const { selectedItem, token, apiBaseUrl, setSelectedItem, showToast } = useAppStore();
+  const [detailedItem, setDetailedItem] = useState<any>(selectedItem);
+  const [loadingDetail, setLoadingDetail] = useState(false);
   const [seg, setSeg] = useState('All');
+
+  const item = detailedItem || selectedItem;
+
+  // GET listing details by listing ID: GET /api/v1/listings/{id}
+  useEffect(() => {
+    const fetchListingDetail = async () => {
+      const listingId = selectedItem?.id || selectedItem?.listingId;
+      if (!listingId) return;
+
+      setLoadingDetail(true);
+      try {
+        const activeToken = token ||
+          (await AsyncStorage.getItem('sm_access_token')) ||
+          (await AsyncStorage.getItem('sm_auth_token'));
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (activeToken) headers['Authorization'] = `Bearer ${activeToken}`;
+
+        let url = getApiUrl(`/api/v1/listings/${listingId}`, apiBaseUrl);
+        console.log(`[ItemDetailSellerScreen] 🚀 GET LISTING BY ID: ${url}`);
+        let res = await fetch(url, { headers });
+
+        if (!res.ok) {
+          url = getApiUrl(`/api/v1/listings/public/${listingId}`, apiBaseUrl);
+          console.log(`[ItemDetailSellerScreen] 🔄 Fallback GET public listing BY ID: ${url}`);
+          res = await fetch(url);
+        }
+
+        if (res.ok) {
+          const data = await res.json();
+          console.log('[ItemDetailSellerScreen] GET listing by ID success payload:', data);
+          const merged = { ...selectedItem, ...data };
+          setDetailedItem(merged);
+          setSelectedItem(merged);
+        } else {
+          console.warn(`[ItemDetailSellerScreen] GET listing by ID returned status ${res.status}`);
+        }
+      } catch (err) {
+        console.warn('[ItemDetailSellerScreen] Error fetching listing by ID:', err);
+      } finally {
+        setLoadingDetail(false);
+      }
+    };
+
+    fetchListingDetail();
+  }, [selectedItem?.id, selectedItem?.listingId]);
 
   const bids = useMemo(() => (item ? bidsForItem(item) : []), [item]);
   const filtered = useMemo(() => {
@@ -49,36 +173,108 @@ export const ItemDetailSellerScreen: React.FC = () => {
     );
   }
 
+  const imgUri = getItemImageUri(item);
+
   return (
     <View style={styles.container}>
       <AppBar />
-      <Header noSafeArea title={item.name} onBack={() => nav.goBack()} right={
+      <Header noSafeArea title={item.name || item.title || 'Item Detail'} onBack={() => nav.goBack()} right={
         <TouchableOpacity hitSlop={8}><Icon name="more" size={20} color={T.text1} /></TouchableOpacity>
       } />
 
       <ScrollView contentContainerStyle={{ paddingBottom: 24 }} showsVerticalScrollIndicator={false}>
-        {/* Hero */}
-        <View style={styles.hero}>
-          <Text style={styles.heroEmoji}>{item.img}</Text>
-          <View style={styles.statusPillWrap}><StatusPill status={item.status} /></View>
+        {/* Compact Hero Card */}
+        <View style={styles.heroCardContainer}>
+          <View style={styles.compactHeroCard}>
+            {/* Left Image Box */}
+            <View style={styles.compactImgBox}>
+              {imgUri ? (
+                <Image source={{ uri: imgUri }} style={styles.compactImg} resizeMode="cover" />
+              ) : (
+                <Text style={styles.compactEmoji}>{productIcon(item.subcategoryName || item.categoryName || item.subcategory || item.name)}</Text>
+              )}
+            </View>
+
+            {/* Right Info Box */}
+            {(() => {
+              const saleTypeVal = item.saleType || item.tradeType || item.listingType || item.type || 'Auction';
+              const categoryVal = item.categoryName || item.category || 'Shrimp & Prawns';
+              const subcategoryVal = item.subcategoryName || item.subcategory || item.sub || 'Vannamei Shrimp';
+
+              return (
+                <View style={styles.compactHeroInfo}>
+                  {/* Status & Sale Type Row */}
+                  <View style={styles.compactStatusRow}>
+                    <StatusPill status={item.status || item.listingStatus || item.approvalStatus} />
+                    <View style={styles.saleTypeBadge}>
+                      <Text style={styles.saleTypeBadgeText}>⚡ {saleTypeVal}</Text>
+                    </View>
+                  </View>
+
+                  {/* Listing Name */}
+                  <Text style={styles.itemName} numberOfLines={1}>{item.name || item.title || 'Seafood Listing'}</Text>
+
+                  {/* Category & Subcategory below Listing Name */}
+                  <View style={styles.categorySubRow}>
+                    <Text style={styles.categorySubText}>
+                      {categoryVal} <Text style={styles.dotSeparator}>•</Text> <Text style={styles.subTextBold}>{subcategoryVal}</Text>
+                    </Text>
+                  </View>
+
+                  {/* Grade, Freshness & Location Tag Row */}
+                  <View style={styles.tagRow}>
+                    {item.grade && (
+                      <View style={styles.gradeTag}>
+                        <Text style={styles.gradeTagText}>{item.grade.startsWith('Gr') ? item.grade : `Gr. ${item.grade}`}</Text>
+                      </View>
+                    )}
+                    {item.freshness && (
+                      <View style={styles.freshnessTag}>
+                        <Text style={styles.freshnessTagText}>❄️ {item.freshness === 'FreshOnIce' ? 'Fresh on Ice' : item.freshness}</Text>
+                      </View>
+                    )}
+                    <View style={styles.locRow}>
+                      <Icon name="mapPin" size={11} color={T.text3} />
+                      <Text style={styles.locText} numberOfLines={1}>{item.region || item.branchName || item.port || 'Kakinada Port'}</Text>
+                    </View>
+                  </View>
+                </View>
+              );
+            })()}
+          </View>
         </View>
 
         <View style={styles.body}>
-          {/* Title + price */}
-          <View style={styles.titleRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.itemName}>{item.name}</Text>
-              <Text style={styles.itemSub}>{item.sub} · {item.qty}</Text>
-              <View style={styles.locRow}>
-                <Icon name="mapPin" size={12} color={T.text3} />
-                <Text style={styles.locText}>{item.region}</Text>
+          {/* Executive Financial Metrics Bar */}
+          {(() => {
+            const cleanUom = formatUom(item.uom || item.unit);
+            const rawQtyStr = item.quantity ? `${item.quantity} ${cleanUom}` : (item.quantityRemaining ? `${item.quantityRemaining} ${cleanUom}` : (item.qty ? String(item.qty).replace(/kilograms|\((?:kg|kgs)\)/gi, 'kg') : `100 ${cleanUom}`));
+            const qtyStr = rawQtyStr.replace(/kilograms/gi, 'kg').replace(/\(kg\)/gi, 'kg');
+            const qtyNum = parseFloat(String(item.quantity || item.quantityRemaining || item.qty || '0').replace(/[^0-9.]/g, '')) || 0;
+            const unitPriceNum = item.pricePerUnit ?? (item.priceNum ?? (item.price ? parseFloat(String(item.price).replace(/[^0-9.]/g, '')) : 0));
+            const totalVal = qtyNum * unitPriceNum;
+            const displayTotal = totalVal > 0 ? `₹${totalVal.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` : 'N/A';
+            const priceDisplay = item.pricePerUnit ? `₹${item.pricePerUnit.toFixed(2)}/${cleanUom}` : (item.price ? String(item.price).replace(/kilograms/gi, 'kg').replace(/\(kg\)/gi, 'kg') : '₹0.00');
+
+            return (
+              <View style={styles.metricsBar}>
+                <View style={styles.metricCell}>
+                  <Text style={styles.metricLabel}>Order Quantity</Text>
+                  <Text style={styles.metricValQty}>{qtyStr}</Text>
+                </View>
+
+                <View style={[styles.metricCell, styles.metricBorder]}>
+                  <Text style={styles.metricLabel}>Starting Price</Text>
+                  <Text style={styles.metricValPrice}>{priceDisplay}</Text>
+                </View>
+
+                <View style={styles.metricCell}>
+                  <Text style={styles.metricLabel}>Est. Total Value</Text>
+                  <Text style={styles.metricValGreen}>{displayTotal}</Text>
+                </View>
               </View>
-            </View>
-            <View style={styles.priceBlock}>
-              <Text style={styles.priceLabel}>Starting</Text>
-              <Text style={styles.price}>{item.price}</Text>
-            </View>
-          </View>
+            );
+          })()}
 
           {/* Status / countdown strip */}
           {item.status === 'live' && (
@@ -91,28 +287,109 @@ export const ItemDetailSellerScreen: React.FC = () => {
             </View>
           )}
 
-          {/* Specs grid */}
+          {/* Specs & Attributes Grid */}
           {(() => {
-            const qtyNum = parseFloat(String(item.quantity || item.qty || '0').replace(/[^0-9.]/g, '')) || 0;
-            const unitPriceNum = item.pricePerUnit ?? (item.priceNum ?? (item.price ? parseFloat(String(item.price).replace(/[^0-9.]/g, '')) : 0));
-            const totalVal = qtyNum * unitPriceNum;
-            const displayTotal = totalVal > 0 ? `₹${totalVal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'N/A';
+            const getParsedSpecifications = (itemData: any) => {
+              const specs: [string, string][] = [];
+
+              // 1. Count / Size
+              if (itemData.countSize || itemData.count || itemData.size) {
+                specs.push(['Count / Size', String(itemData.countSize || itemData.count || itemData.size)]);
+              }
+
+              // 2. Processing & Packaging
+              if (itemData.processing || itemData.processingType) {
+                specs.push(['Processing', String(itemData.processing || itemData.processingType)]);
+              }
+              if (itemData.packaging || itemData.packagingType) {
+                specs.push(['Packaging', String(itemData.packaging || itemData.packagingType)]);
+              }
+
+              // 3. Dynamic API Specifications Array/Object
+              const rawSpecs = itemData.specifications || itemData.specs || itemData.attributes;
+              if (Array.isArray(rawSpecs)) {
+                rawSpecs.forEach((s: any) => {
+                  if (s && typeof s === 'object') {
+                    const k = s.name || s.key || s.title || s.specKey;
+                    const v = s.value || s.val || s.specValue;
+                    if (k && v) specs.push([String(k), String(v)]);
+                  }
+                });
+              } else if (rawSpecs && typeof rawSpecs === 'object') {
+                Object.entries(rawSpecs).forEach(([k, v]) => {
+                  if (k && v !== undefined && v !== null) {
+                    specs.push([String(k), typeof v === 'object' ? JSON.stringify(v) : String(v)]);
+                  }
+                });
+              }
+
+              return specs;
+            };
+
+            const specList = getParsedSpecifications(item);
+            if (specList.length === 0) return null;
 
             return (
               <Card style={styles.cardNoMargin}>
+                <Text style={styles.specsHeaderTitle}>Listing Specifications</Text>
                 <View style={styles.grid}>
-                  {[
-                    ['Quantity', item.quantity ? `${item.quantity} ${item.uom || 'kg'}` : (item.qty || 'N/A')],
-                    ['Price per Unit', item.pricePerUnit ? `₹${item.pricePerUnit.toFixed(2)}/${item.uom || 'kg'}` : (item.price || 'N/A')],
-                    ['Total Estimated Value', displayTotal],
-                    ['Grade', item.grade ? (item.grade.startsWith('Grade') ? item.grade : `Grade ${item.grade}`) : 'Grade A'],
-                    ['Freshness', item.freshness || 'Fresh on Ice'],
-                    ['Region', item.region || item.branchName || item.port || 'N/A'],
-                    ['Total Bids', String(item.bids ?? 0)],
-                  ].map(([k, v]) => (
-                    <View key={k} style={styles.gridCell}>
+                  {specList.map(([k, v], i) => (
+                    <View key={`${k}_${i}`} style={styles.gridCell}>
                       <Text style={styles.gridKey}>{k}</Text>
-                      <Text style={[styles.gridVal, k === 'Total Estimated Value' && { color: T.green, fontWeight: '900' }]}>{v}</Text>
+                      <Text style={styles.gridVal}>{v}</Text>
+                    </View>
+                  ))}
+                </View>
+              </Card>
+            );
+          })()}
+
+          {/* Dimensions Section */}
+          {(() => {
+            const getParsedDimensions = (itemData: any): [string, string][] => {
+              const dims: [string, string][] = [];
+              const rawDims = itemData?.dimensions || itemData?.dimension || itemData?.dimensionValues || itemData?.listingDimensions;
+
+              if (!rawDims) return dims;
+
+              if (Array.isArray(rawDims)) {
+                rawDims.forEach((d: any) => {
+                  if (typeof d === 'string' || typeof d === 'number') {
+                    dims.push(['Dimension', String(d)]);
+                  } else if (d && typeof d === 'object') {
+                    const k = d.name || d.dimensionName || d.key || d.title || d.label || d.specKey || 'Dimension';
+                    const v = d.value || d.val || d.dimensionValue || d.size || d.specValue;
+                    const unit = d.uom || d.unit ? ` ${d.uom || d.unit}` : '';
+                    if (k && v !== undefined && v !== null) {
+                      dims.push([String(k), `${v}${unit}`]);
+                    }
+                  }
+                });
+              } else if (typeof rawDims === 'object') {
+                Object.entries(rawDims).forEach(([k, v]) => {
+                  if (k && v !== undefined && v !== null && typeof v !== 'function') {
+                    const keyFormatted = k.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
+                    dims.push([keyFormatted, typeof v === 'object' ? JSON.stringify(v) : String(v)]);
+                  }
+                });
+              } else if (typeof rawDims === 'string' || typeof rawDims === 'number') {
+                dims.push(['Dimensions', String(rawDims)]);
+              }
+
+              return dims;
+            };
+
+            const dimList = getParsedDimensions(item);
+            if (dimList.length === 0) return null;
+
+            return (
+              <Card style={styles.cardNoMargin}>
+                <Text style={styles.specsHeaderTitle}>Product Dimensions</Text>
+                <View style={styles.grid}>
+                  {dimList.map(([k, v], i) => (
+                    <View key={`${k}_${i}`} style={styles.gridCell}>
+                      <Text style={styles.gridKey}>{k}</Text>
+                      <Text style={styles.gridVal}>{v}</Text>
                     </View>
                   ))}
                 </View>
@@ -272,30 +549,55 @@ const styles = StyleSheet.create({
   fallback: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   fallbackText: { fontSize: 14, color: T.text3 },
 
-  hero: { height: 200, backgroundColor: `${T.navy}10`, alignItems: 'center', justifyContent: 'center', borderBottomWidth: 1, borderBottomColor: T.hairline, position: 'relative' },
-  heroEmoji: { fontSize: 96 },
-  statusPillWrap: { position: 'absolute', top: 12, right: 12 },
+  // COMPACT HERO CARD
+  heroCardContainer: { paddingHorizontal: 16, paddingTop: 14 },
+  compactHeroCard: { flexDirection: 'row', backgroundColor: T.card, borderRadius: 16, borderWidth: 1, borderColor: T.hairline, padding: 12, gap: 14, alignItems: 'center', elevation: 2, shadowColor: '#0F172A', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8 },
+  compactImgBox: { width: 104, height: 104, borderRadius: 12, backgroundColor: `${T.navy}08`, borderWidth: 1, borderColor: `${T.navy}15`, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
+  compactImg: { width: '100%', height: '100%' },
+  compactEmoji: { fontSize: 48 },
+  compactHeroInfo: { flex: 1, gap: 4 },
+  compactStatusRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 },
+  saleTypeBadge: { backgroundColor: `${T.navy}10`, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, borderWidth: 1, borderColor: `${T.navy}20` },
+  saleTypeBadgeText: { fontSize: 11, fontWeight: '800', color: T.navy },
+
+  itemName: { fontSize: 16, fontWeight: '900', color: T.text1, lineHeight: 21 },
+  categorySubRow: { marginTop: 1, marginBottom: 2 },
+  categorySubText: { fontSize: 12, color: T.text2, fontWeight: '600' },
+  dotSeparator: { color: T.text3, marginHorizontal: 2 },
+  subTextBold: { color: T.navy, fontWeight: '800' },
+
+  tagRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginTop: 2 },
+  subTag: { backgroundColor: `${T.navy}10`, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  subTagText: { fontSize: 11, fontWeight: '700', color: T.navy },
+  gradeTag: { backgroundColor: '#F1F5F9', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, borderWidth: 1, borderColor: '#CBD5E1' },
+  gradeTagText: { fontSize: 11, fontWeight: '700', color: T.text2 },
+  freshnessTag: { backgroundColor: '#3B82F615', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, borderWidth: 1, borderColor: '#3B82F635' },
+  freshnessTagText: { fontSize: 11, fontWeight: '700', color: '#1D4ED8' },
+  locRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  locText: { fontSize: 11, color: T.text3, fontWeight: '600', flexShrink: 1 },
 
   body: { padding: 16, gap: 14 },
 
-  titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 },
-  itemName: { fontSize: 22, fontWeight: '900', color: T.text1 },
-  itemSub: { fontSize: 13, color: T.text2, fontWeight: '600', marginTop: 2 },
-  locRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
-  locText: { fontSize: 12, color: T.text3 },
-  priceBlock: { alignItems: 'flex-end' },
-  priceLabel: { fontSize: 11, color: T.text3, fontWeight: '600' },
-  price: { fontSize: 22, fontWeight: '900', color: T.navy, fontVariant: ['tabular-nums'] },
+  // METRICS BAR
+  metricsBar: { flexDirection: 'row', backgroundColor: T.card, borderRadius: 14, borderWidth: 1, borderColor: T.hairline, paddingVertical: 12, paddingHorizontal: 8, marginBottom: 2 },
+  metricCell: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  metricBorder: { borderLeftWidth: 1, borderRightWidth: 1, borderColor: T.hairline },
+  metricLabel: { fontSize: 10, fontWeight: '700', color: T.text3, textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 2 },
+  metricValQty: { fontSize: 15, fontWeight: '900', color: T.navy },
+  metricValPrice: { fontSize: 15, fontWeight: '900', color: T.navy },
+  metricValGreen: { fontSize: 15, fontWeight: '900', color: T.green },
+  metricValBids: { fontSize: 15, fontWeight: '900', color: T.amber },
 
   strip: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 12, borderRadius: 10, backgroundColor: `${T.green}10`, borderWidth: 1, borderColor: `${T.green}25` },
   stripLeft: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   stripText: { fontSize: 13, color: T.text2, fontWeight: '600' },
 
-  cardNoMargin: { marginBottom: 0 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', padding: 14, gap: 12 },
-  gridCell: { width: '47%' },
-  gridKey: { fontSize: 11, color: T.text3, fontWeight: '600', letterSpacing: 0.3, textTransform: 'uppercase' },
-  gridVal: { fontSize: 14, fontWeight: '700', color: T.text1, marginTop: 2 },
+  cardNoMargin: { marginBottom: 0, padding: 14 },
+  specsHeaderTitle: { fontSize: 12, fontWeight: '800', color: T.navy, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  gridCell: { width: '48%', backgroundColor: '#F8FAFC', padding: 10, borderRadius: 10, borderWidth: 1, borderColor: '#E2E8F0' },
+  gridKey: { fontSize: 10, color: T.text3, fontWeight: '700', letterSpacing: 0.3, textTransform: 'uppercase' },
+  gridVal: { fontSize: 13, fontWeight: '800', color: T.text1, marginTop: 3 },
 
   bidsHeaderWrap: { paddingHorizontal: 16, paddingTop: 6, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   bidsTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
