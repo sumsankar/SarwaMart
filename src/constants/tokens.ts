@@ -35,15 +35,41 @@ export const T = {
 } as const;
 
 export const STATUS_PILL = {
-  live:         { bg: '#E6F6EC', text: '#007A20', dot: '#007A20' }, // Forest green
-  pending:      { bg: '#FFF3E0', text: '#E58E00', dot: '#FFA000' }, // Golden yellow
-  sold:         { bg: '#F1F5F9', text: '#475569', dot: '#94A3B8' },
-  expired:      { bg: '#FEF2F2', text: '#EF4444', dot: '#EF4444' },
-  negotiating:  { bg: '#F0F9FF', text: '#1E88E5', dot: '#1E88E5' },
-  approved:     { bg: '#E6F6EC', text: '#007A20', dot: '#007A20' },
-  rejected:     { bg: '#FEF2F2', text: '#EF4444', dot: '#EF4444' },
-  'under review': { bg: '#FFF3E0', text: '#E58E00', dot: '#FFA000' },
-  settled:      { bg: '#E6F6EC', text: '#007A20', dot: '#007A20' },
-  'payment pending': { bg: '#FFF3E0', text: '#E58E00', dot: '#FFA000' },
+  // Enum Values (1 to 8)
+  1:                     { bg: '#F3F4F6', text: '#4B5563', dot: '#9CA3AF' }, // Draft = 1 (Neutral Gray)
+  2:                     { bg: '#FFF3E0', text: '#D97706', dot: '#F59E0B' }, // PendingApproval = 2 (Warm Amber Gold)
+  3:                     { bg: '#DCFCE7', text: '#15803D', dot: '#16A34A' }, // Live = 3 (Forest Green)
+  4:                     { bg: '#FEE2E2', text: '#B91C1C', dot: '#EF4444' }, // Rejected = 4 (Red Alert)
+  5:                     { bg: '#CCFBF1', text: '#0F766E', dot: '#14B8A6' }, // PartiallyAllocated = 5 (Teal / Cyan)
+  6:                     { bg: '#F1F5F9', text: '#475569', dot: '#64748B' }, // SoldOut = 6 (Cool Slate)
+  7:                     { bg: '#FFE4E6', text: '#BE123C', dot: '#E11D48' }, // Expired = 7 (Rose / Dark Red)
+  8:                     { bg: '#FEE2E2', text: '#991B1B', dot: '#DC2626' }, // Cancelled = 8 (Muted Red)
+
+  // Lowercase & Clean String Keys
+  draft:                 { bg: '#F3F4F6', text: '#4B5563', dot: '#9CA3AF' },
+  pendingapproval:       { bg: '#FFF3E0', text: '#D97706', dot: '#F59E0B' },
+  'pending approval':    { bg: '#FFF3E0', text: '#D97706', dot: '#F59E0B' },
+  pending_approval:      { bg: '#FFF3E0', text: '#D97706', dot: '#F59E0B' },
+  pending:               { bg: '#FFF3E0', text: '#D97706', dot: '#F59E0B' },
+  submitted:             { bg: '#FFF3E0', text: '#D97706', dot: '#F59E0B' },
+  submittedforapproval:  { bg: '#FFF3E0', text: '#D97706', dot: '#F59E0B' },
+  live:                  { bg: '#DCFCE7', text: '#15803D', dot: '#16A34A' },
+  active:                { bg: '#DCFCE7', text: '#15803D', dot: '#16A34A' },
+  published:             { bg: '#DCFCE7', text: '#15803D', dot: '#16A34A' },
+  rejected:              { bg: '#FEE2E2', text: '#B91C1C', dot: '#EF4444' },
+  partiallyallocated:    { bg: '#CCFBF1', text: '#0F766E', dot: '#14B8A6' },
+  'partially allocated': { bg: '#CCFBF1', text: '#0F766E', dot: '#14B8A6' },
+  soldout:               { bg: '#F1F5F9', text: '#475569', dot: '#64748B' },
+  'sold out':            { bg: '#F1F5F9', text: '#475569', dot: '#64748B' },
+  sold:                  { bg: '#F1F5F9', text: '#475569', dot: '#64748B' },
+  completed:             { bg: '#F1F5F9', text: '#475569', dot: '#64748B' },
+  expired:               { bg: '#FFE4E6', text: '#BE123C', dot: '#E11D48' },
+  cancelled:             { bg: '#FEE2E2', text: '#991B1B', dot: '#DC2626' },
+  canceled:              { bg: '#FEE2E2', text: '#991B1B', dot: '#DC2626' },
+  inactive:              { bg: '#FEE2E2', text: '#991B1B', dot: '#DC2626' },
+  negotiating:           { bg: '#F3E8FF', text: '#6B21A8', dot: '#9333EA' },
+  'under review':        { bg: '#FEF3C7', text: '#B45309', dot: '#F59E0B' },
+  settled:               { bg: '#DCFCE7', text: '#15803D', dot: '#16A34A' },
+  'payment pending':     { bg: '#FEF3C7', text: '#B45309', dot: '#F59E0B' },
 } as const;
 

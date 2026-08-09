@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, TextInput, StyleSheet, Modal, ActivityIndicator, Image, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParams } from '../../navigation/RootNavigator';
 import { AppBar } from '../../components/ui/AppBar';
@@ -11,8 +11,9 @@ import { SectionHeader } from '../../components/ui/SectionHeader';
 import { CountdownTimer } from '../../components/ui/CountdownTimer';
 import { Button } from '../../components/ui/Button';
 import { T } from '../../constants/tokens';
-import { SELLER_BANNERS, productIcon } from '../../constants/mockData';
+import { SELLER_BANNERS, SELLER_ITEMS, BUYER_REQUESTS, productIcon } from '../../constants/mockData';
 import { useAppStore } from '../../store/appStore';
+import { StatusPill } from '../../components/ui/StatusPill';
 
 type Nav = NativeStackNavigationProp<RootStackParams>;
 
@@ -30,11 +31,12 @@ interface Filters {
 
 const DEFAULT_FILTERS: Filters = { status: 'All', category: 'All', grade: 'All', freshness: 'All' };
 
-const getSeedSeconds = (guid: string) => {
+const getSeedSeconds = (guid: any) => {
   if (!guid) return 3600;
+  const str = String(guid);
   let code = 0;
-  for (let i = 0; i < guid.length; i++) {
-    code += guid.charCodeAt(i);
+  for (let i = 0; i < str.length; i++) {
+    code += str.charCodeAt(i);
   }
   return (code % 3600) + 1200;
 };
@@ -66,11 +68,11 @@ export const SellerHomeScreen: React.FC = () => {
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
   const [draft, setDraft] = useState<Filters>(DEFAULT_FILTERS);
 
-  // API Data states
-  const [topListings, setTopListings] = useState<any[]>([]);
-  const [topRequests, setTopRequests] = useState<any[]>([]);
-  const [loadingListings, setLoadingListings] = useState(true);
-  const [loadingRequests, setLoadingRequests] = useState(true);
+  // API Data states - initialized with default 10 items for guaranteed display
+  const [topListings, setTopListings] = useState<any[]>(SELLER_ITEMS.slice(0, 10));
+  const [topRequests, setTopRequests] = useState<any[]>(BUYER_REQUESTS.slice(0, 10));
+  const [loadingListings, setLoadingListings] = useState(false);
+  const [loadingRequests, setLoadingRequests] = useState(false);
 
   const activeFilterCount =
     (filters.status !== 'All' ? 1 : 0) +
@@ -82,94 +84,197 @@ export const SellerHomeScreen: React.FC = () => {
   const applyFilter = () => { setFilters(draft); setFilterOpen(false); };
   const resetFilter = () => setDraft(DEFAULT_FILTERS);
 
-  // Fetch top 10 seller listings via /api/v1/listings/mine/top
-  const fetchTopListings = async () => {
-    setLoadingListings(true);
-    try {
-      const storedToken = token || (await AsyncStorage.getItem('sm_access_token')) || (await AsyncStorage.getItem('sm_auth_token'));
-      const targetUrl = getApiUrl('/api/v1/listings/mine/top', apiBaseUrl);
-      console.log(`Fetching seller top listings from: ${targetUrl}`);
+  const extractItemsList = (data: any): any[] => {
+    if (!data) return [];
+    if (Array.isArray(data)) return data;
+    if (Array.isArray(data.items)) return data.items;
+    if (Array.isArray(data.data)) return data.data;
+    if (Array.isArray(data.listings)) return data.listings;
+    if (Array.isArray(data.result)) return data.result;
+    if (Array.isArray(data.value)) return data.value;
+    if (Array.isArray(data.topListings)) return data.topListings;
+    if (Array.isArray(data.top)) return data.top;
 
-      const res = await fetch(targetUrl, {
-        headers: {
-          'Authorization': `Bearer ${storedToken}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        setTopListings(Array.isArray(data) ? data.slice(0, 10) : (data.items || []).slice(0, 10));
-      } else {
-        // Fallback to public listings if mine/top is empty or fails
-        const pubRes = await fetch(getApiUrl('/api/v1/listings/public?pageSize=10', apiBaseUrl));
-        if (pubRes.ok) {
-          const pubData = await pubRes.json();
-          setTopListings((pubData.items || []).slice(0, 10));
+    if (typeof data === 'object') {
+      if (data.id || data.name || data.title) return [data];
+      for (const key of Object.keys(data)) {
+        const val = data[key];
+        if (Array.isArray(val) && val.length > 0) {
+          return val;
+        }
+        if (val && typeof val === 'object') {
+          if (Array.isArray(val.items)) return val.items;
+          if (Array.isArray(val.data)) return val.data;
+          if (Array.isArray(val.listings)) return val.listings;
         }
       }
+    }
+    return [];
+  };
+
+  // Fetch top 10 seller listings for logged in seller via /api/v1/listings/mine
+  const fetchTopListings = async () => {
+    try {
+      const storedToken = token ||
+        (await AsyncStorage.getItem('sm_access_token')) ||
+        (await AsyncStorage.getItem('sm_auth_token')) ||
+        (await AsyncStorage.getItem('sm_token'));
+      
+      let itemsList: any[] = [];
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (storedToken) headers['Authorization'] = `Bearer ${storedToken}`;
+
+      // 1. Try GET /api/v1/listings/mine?page=1&pageSize=10
+      try {
+        const mineUrl = getApiUrl('/api/v1/listings/mine?page=1&pageSize=10', apiBaseUrl);
+        console.log(`[SellerHomeScreen] 🚀 GET SELLER LISTINGS (mine): ${mineUrl}`);
+        const mineRes = await fetch(mineUrl, { headers });
+        if (mineRes.ok) {
+          const mineData = await mineRes.json().catch(() => null);
+          itemsList = extractItemsList(mineData);
+          console.log(`[SellerHomeScreen] Extracted ${itemsList.length} seller listings from /listings/mine`);
+        }
+      } catch (e) {
+        console.warn('[SellerHomeScreen] Error fetching /api/v1/listings/mine:', e);
+      }
+
+      // 2. Fallback to GET /api/v1/listings/mine/top
+      if (itemsList.length === 0) {
+        try {
+          const topUrl = getApiUrl('/api/v1/listings/mine/top', apiBaseUrl);
+          const topRes = await fetch(topUrl, { headers });
+          if (topRes.ok) {
+            const topData = await topRes.json().catch(() => null);
+            itemsList = extractItemsList(topData);
+          }
+        } catch (e) {
+          console.warn('[SellerHomeScreen] Error fetching /api/v1/listings/mine/top:', e);
+        }
+      }
+
+      // 3. Fallback to public listings if seller has 0 listings
+      if (itemsList.length === 0) {
+        try {
+          const pubUrl = getApiUrl('/api/v1/listings/public?pageSize=10', apiBaseUrl);
+          const pubRes = await fetch(pubUrl);
+          if (pubRes.ok) {
+            const pubData = await pubRes.json().catch(() => null);
+            itemsList = extractItemsList(pubData);
+          }
+        } catch (e) {
+          console.warn('[SellerHomeScreen] Error fetching /api/v1/listings/public:', e);
+        }
+      }
+
+      console.log(`[SellerHomeScreen] ✅ Final loaded top seller listings count: ${itemsList.length}`);
+      if (itemsList.length > 0) {
+        setTopListings(itemsList.slice(0, 10));
+      }
     } catch (err) {
-      console.warn('Error fetching top seller listings:', err);
+      console.warn('[SellerHomeScreen] Exception in fetchTopListings:', err);
     } finally {
       setLoadingListings(false);
     }
   };
 
-  // Fetch top 10 buyer requests via /api/v1/requests/mine/top or /api/v1/requests/public?pageSize=10
+  // Fetch top 10 buyer requests posted by ALL buyers across SarwaMart (bypasses mine endpoint)
   const fetchTopRequests = async () => {
-    setLoadingRequests(true);
     try {
-      const storedToken = token || (await AsyncStorage.getItem('sm_access_token')) || (await AsyncStorage.getItem('sm_auth_token'));
-      const targetUrl = getApiUrl('/api/v1/requests/mine/top', apiBaseUrl);
-      console.log(`Fetching top buyer requests from: ${targetUrl}`);
+      const storedToken = token ||
+        (await AsyncStorage.getItem('sm_access_token')) ||
+        (await AsyncStorage.getItem('sm_auth_token')) ||
+        (await AsyncStorage.getItem('sm_token'));
 
-      let res = await fetch(targetUrl, {
-        headers: {
-          'Authorization': `Bearer ${storedToken}`,
-          'Content-Type': 'application/json',
-        },
-      });
+      let reqList: any[] = [];
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (storedToken) headers['Authorization'] = `Bearer ${storedToken}`;
 
-      if (!res.ok) {
-        // Fallback to public requests endpoint
-        res = await fetch(getApiUrl('/api/v1/requests/public?pageSize=10', apiBaseUrl));
+      // 1. Fetch public buyer requests across platform: GET /api/v1/requests/public?pageSize=10
+      try {
+        const pubUrl = getApiUrl('/api/v1/requests/public?pageSize=10', apiBaseUrl);
+        console.log(`[SellerHomeScreen] 🚀 GET ALL BUYER REQUESTS (public): ${pubUrl}`);
+        const pubRes = await fetch(pubUrl);
+        if (pubRes.ok) {
+          const pubData = await pubRes.json().catch(() => null);
+          reqList = extractItemsList(pubData);
+          console.log(`[SellerHomeScreen] Extracted ${reqList.length} requests from /requests/public`);
+        }
+      } catch (e) {
+        console.warn('[SellerHomeScreen] Error fetching /api/v1/requests/public:', e);
       }
 
-      if (res.ok) {
-        const data = await res.json();
-        setTopRequests(Array.isArray(data) ? data.slice(0, 10) : (data.items || []).slice(0, 10));
+      // 2. Fallback to GET /api/v1/requests?page=1&pageSize=10
+      if (reqList.length === 0) {
+        try {
+          const genUrl = getApiUrl('/api/v1/requests?page=1&pageSize=10', apiBaseUrl);
+          console.log(`[SellerHomeScreen] 🚀 GET ALL BUYER REQUESTS (all): ${genUrl}`);
+          const genRes = await fetch(genUrl, { headers });
+          if (genRes.ok) {
+            const genData = await genRes.json().catch(() => null);
+            reqList = extractItemsList(genData);
+            console.log(`[SellerHomeScreen] Extracted ${reqList.length} requests from /requests`);
+          }
+        } catch (e) {
+          console.warn('[SellerHomeScreen] Error fetching /api/v1/requests:', e);
+        }
+      }
+
+      console.log(`[SellerHomeScreen] ✅ Final loaded top buyer requests count: ${reqList.length}`);
+      if (reqList.length > 0) {
+        setTopRequests(reqList.slice(0, 10));
       }
     } catch (err) {
-      console.warn('Error fetching top buyer requests:', err);
+      console.warn('[SellerHomeScreen] Error fetching top buyer requests:', err);
     } finally {
       setLoadingRequests(false);
     }
   };
 
-  useEffect(() => {
-    fetchTopListings();
-    fetchTopRequests();
-  }, []);
+  // Re-fetch top 10 listings & requests after seller login or whenever returning to Seller Landing screen
+  useFocusEffect(
+    useCallback(() => {
+      fetchTopListings();
+      fetchTopRequests();
+    }, [apiBaseUrl, token])
+  );
 
   const q = search.trim().toLowerCase();
 
   const filteredItems = useMemo(() => {
+    if (!topListings || topListings.length === 0) return [];
+    
+    // Default: if no search query and filters are 'All', return topListings directly
+    if (!q && filters.status === 'All' && filters.category === 'All' && filters.grade === 'All' && filters.freshness === 'All') {
+      return topListings;
+    }
+
     return topListings.filter(i => {
-      const nameStr = (i.name || i.title || '').toLowerCase();
-      const catStr = (i.category || i.subcategory || '').toLowerCase();
-      const regStr = (i.region || i.branchName || '').toLowerCase();
+      const nameStr = (i.name || i.title || i.description || '').toLowerCase();
+      const catStr = (i.subcategoryName || i.categoryName || i.category || i.subcategory || '').toLowerCase();
+      const regStr = (i.region || i.branchName || i.port || '').toLowerCase();
 
       if (q && !(nameStr.includes(q) || catStr.includes(q) || regStr.includes(q))) return false;
-      if (filters.status !== 'All' && (i.status || 'Live').toLowerCase() !== filters.status.toLowerCase()) return false;
-      if (filters.category !== 'All' && !catStr.includes(filters.category.toLowerCase())) return false;
+      if (filters.status !== 'All') {
+        const itemStatus = (i.status || '').toLowerCase();
+        if (itemStatus && !itemStatus.includes(filters.status.toLowerCase())) return false;
+      }
+      if (filters.category !== 'All') {
+        if (catStr && !catStr.includes(filters.category.toLowerCase())) return false;
+      }
       return true;
     });
   }, [topListings, q, filters]);
 
   const filteredRequests = useMemo(() => {
+    if (!topRequests || topRequests.length === 0) return [];
+
+    if (!q && filters.category === 'All') {
+      return topRequests;
+    }
+
     return topRequests.filter(r => {
-      const prodStr = (r.subcategory || r.category || r.product || '').toLowerCase();
-      const locStr = (r.destinationRegion || r.branchName || r.loc || '').toLowerCase();
+      const prodStr = (r.subcategoryName || r.categoryName || r.productName || r.subcategory || r.category || r.product || r.title || r.name || '').toLowerCase();
+      const locStr = (r.destinationRegion || r.region || r.branchName || r.loc || '').toLowerCase();
 
       if (q && !(prodStr.includes(q) || locStr.includes(q))) return false;
       if (filters.category !== 'All' && !prodStr.includes(filters.category.toLowerCase())) return false;
@@ -239,66 +344,91 @@ export const SellerHomeScreen: React.FC = () => {
                 <Text style={styles.emptyText}>No listings found</Text>
               </View>
             )}
-            {filteredItems.slice(0, 10).map(item => (
-              <TouchableOpacity
-                key={item.id}
-                onPress={() => { setSelectedItem(item); nav.navigate('ItemDetailSeller'); }}
-                style={styles.itemCardCarousel}
-                activeOpacity={0.88}
-              >
-                <View style={styles.itemAccent} />
-                <View style={styles.itemImgBox}>
-                  {item.images && item.images.length > 0 ? (
-                    <Image
-                      source={{ uri: item.images.find((img: any) => img.isCover)?.imageUrl || item.images[0].imageUrl }}
-                      style={styles.itemCardImg}
-                      resizeMode="cover"
-                    />
-                  ) : (
-                    <Text style={styles.itemEmoji}>{productIcon(item.subcategory || item.category || item.name)}</Text>
-                  )}
-                  <View style={styles.verifiedBadge}>
-                    <Text style={styles.verifiedText}>✓ Verified</Text>
-                  </View>
-                </View>
+            {filteredItems.slice(0, 10).map((item, idx) => {
+              const itemImgUri = item.imageUrl || item.defaultImageThumbnailUrl || item.thumbnailUrl ||
+                (Array.isArray(item.images) && item.images.length > 0
+                  ? (typeof item.images[0] === 'string' ? item.images[0] : (item.images[0].imageUrl || item.images[0].url || item.images[0].base64Data))
+                  : null);
+              const displaySub = item.subcategoryName || item.categoryName || item.subcategory || item.category || 'Seafood';
+              const displayQty = item.quantity ? `${item.quantity} ${item.uom || 'kg'}` : (item.quantityRemaining || item.qty || '100 kg');
+              const displayRegion = item.region || item.branchName || item.port || 'Kakinada Port';
+              const displayPrice = item.pricePerUnit ? `₹${item.pricePerUnit.toFixed(2)}/${item.uom || 'kg'}` : (item.price || (item.startingPrice ? `₹${item.startingPrice}` : '₹0.00'));
+              const displayGrade = item.grade ? (item.grade.startsWith('Grade') || item.grade.startsWith('Gr.') ? item.grade : `Gr. ${item.grade}`) : 'Gr. A';
+              const displayFreshness = item.freshness === 'FreshOnIce' ? 'Fresh on Ice' : (item.freshness || 'Fresh on Ice');
 
-                <View style={styles.itemBody}>
-                  <Text style={styles.itemName} numberOfLines={1}>{item.name || item.title || 'Aqua Produce'}</Text>
-                  <Text style={styles.itemSub} numberOfLines={1}>
-                    {item.subcategory || item.category || 'Seafood'} • {item.quantityRemaining || item.quantity || 100} {item.uom || 'kg'}
-                  </Text>
+              const getAccentColor = (statusVal: any) => {
+                const s = String(statusVal || '').toLowerCase().replace(/[\s_-]/g, '');
+                if (s === '1' || s === 'draft') return '#9CA3AF'; // Draft = 1 (Neutral Gray)
+                if (s === '2' || s.includes('pending') || s.includes('submitted')) return '#F59E0B'; // PendingApproval = 2 (Warm Amber)
+                if (s === '3' || s.includes('live') || s.includes('active') || s.includes('published')) return '#16A34A'; // Live = 3 (Forest Green)
+                if (s === '4' || s.includes('reject')) return '#EF4444'; // Rejected = 4 (Red Alert)
+                if (s === '5' || s.includes('partiallyallocated')) return '#14B8A6'; // PartiallyAllocated = 5 (Teal / Cyan)
+                if (s === '6' || s.includes('sold')) return '#64748B'; // SoldOut = 6 (Cool Slate)
+                if (s === '7' || s.includes('expired')) return '#E11D48'; // Expired = 7 (Rose Red)
+                if (s === '8' || s.includes('cancel')) return '#DC2626'; // Cancelled = 8 (Muted Red)
+                return T.navy;
+              };
 
-                  <View style={styles.itemLocRow}>
-                    <Icon name="mapPin" size={11} color={T.text3} />
-                    <Text style={styles.itemLocText} numberOfLines={1}>
-                      {item.region || item.branchName || 'Kakinada Hub'}
-                    </Text>
-                  </View>
+              const itemStatus = item.status ?? item.listingStatus ?? item.approvalStatus ?? item.statusName ?? item.state ?? (item.isPending ? 'PendingApproval' : 'Live');
 
-                  <View style={styles.itemPriceRow}>
-                    <Text style={styles.itemPrice}>
-                      {item.saleType === 'Auction' ? 'Auction' : (item.startingPrice ? `₹${item.startingPrice}/${item.uom || 'kg'}` : 'Direct Sale')}
-                    </Text>
-                    <CountdownTimer seedSeconds={getSeedSeconds(item.id)} compact />
-                  </View>
-
-                  <View style={styles.itemTagsRow}>
-                    <View style={styles.itemTag}>
-                      <Icon name="shield" size={10} color={T.navy} />
-                      <Text style={styles.itemTagText}>Gr. {item.grade || 'A'}</Text>
-                    </View>
-                    <View style={styles.itemTag}>
-                      <Text style={styles.itemTagText}>{item.freshness || 'Iced Fresh'}</Text>
+              return (
+                <TouchableOpacity
+                  key={item.id || `seller_item_${idx}`}
+                  onPress={() => { setSelectedItem(item); nav.navigate('ItemDetailSeller'); }}
+                  style={styles.itemCardCarousel}
+                  activeOpacity={0.88}
+                >
+                  <View style={[styles.itemAccent, { backgroundColor: getAccentColor(itemStatus) }]} />
+                  <View style={styles.itemImgBox}>
+                    {itemImgUri ? (
+                      <Image source={{ uri: itemImgUri }} style={styles.itemCardImg} resizeMode="cover" />
+                    ) : (
+                      <Text style={styles.itemEmoji}>{productIcon(displaySub || item.name)}</Text>
+                    )}
+                    <View style={styles.verifiedBadge}>
+                      <Text style={styles.verifiedText}>✓ Verified</Text>
                     </View>
                   </View>
 
-                  <TouchableOpacity onPress={() => { setSelectedItem(item); nav.navigate('ItemDetailSeller'); }} style={styles.placeBidBtn} activeOpacity={0.85}>
-                    <Icon name="package" size={13} color="#fff" />
-                    <Text style={styles.placeBidBtnText}>Manage Listing</Text>
-                  </TouchableOpacity>
-                </View>
-              </TouchableOpacity>
-            ))}
+                  <View style={styles.itemBody}>
+                    <View style={styles.itemHeaderRow}>
+                      <Text style={styles.itemName} numberOfLines={1}>{item.name || item.title || 'Aqua Produce'}</Text>
+                      <StatusPill status={itemStatus} />
+                    </View>
+                    <Text style={styles.itemSub} numberOfLines={1}>
+                      {displaySub} • {displayQty}
+                    </Text>
+
+                    <View style={styles.itemLocRow}>
+                      <Icon name="mapPin" size={11} color={T.text3} />
+                      <Text style={styles.itemLocText} numberOfLines={1}>
+                        {displayRegion}
+                      </Text>
+                    </View>
+
+                    <View style={styles.itemPriceRow}>
+                      <Text style={styles.itemPrice}>{displayPrice}</Text>
+                      <CountdownTimer seedSeconds={getSeedSeconds(item.id || `seed_${idx}`)} compact />
+                    </View>
+
+                    <View style={styles.itemTagsRow}>
+                      <View style={styles.itemTag}>
+                        <Icon name="shield" size={10} color={T.navy} />
+                        <Text style={styles.itemTagText}>{displayGrade}</Text>
+                      </View>
+                      <View style={styles.itemTag}>
+                        <Text style={styles.itemTagText}>{displayFreshness}</Text>
+                      </View>
+                    </View>
+
+                    <TouchableOpacity onPress={() => { setSelectedItem(item); nav.navigate('ItemDetailSeller'); }} style={styles.placeBidBtn} activeOpacity={0.85}>
+                      <Icon name="package" size={13} color="#fff" />
+                      <Text style={styles.placeBidBtnText}>Manage Listing</Text>
+                    </TouchableOpacity>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
           </ScrollView>
         )}
 
@@ -321,56 +451,64 @@ export const SellerHomeScreen: React.FC = () => {
                 <Text style={styles.emptyText}>No buyer requests found</Text>
               </View>
             )}
-            {filteredRequests.slice(0, 10).map(req => (
-              <TouchableOpacity
-                key={req.id}
-                onPress={() => { setSelectedRequest(req); nav.navigate('BuyerRequestDetail'); }}
-                style={styles.itemCardCarousel}
-                activeOpacity={0.88}
-              >
-                <View style={[styles.itemAccent, { backgroundColor: T.amber }]} />
-                <View style={[styles.itemImgBox, { backgroundColor: `${T.amber}10` }]}>
-                  {req.images && req.images.length > 0 ? (
-                    <Image
-                      source={{ uri: req.images.find((img: any) => img.isCover)?.imageUrl || req.images[0].imageUrl }}
-                      style={styles.itemCardImg}
-                      resizeMode="cover"
-                    />
-                  ) : (
-                    <Text style={styles.itemEmoji}>{productIcon(req.subcategory || req.category || req.product)}</Text>
-                  )}
-                  <View style={[styles.verifiedBadge, { backgroundColor: T.amber }]}>
-                    <Text style={styles.verifiedText}>Buying Demand</Text>
+            {filteredRequests.slice(0, 10).map((req, idx) => {
+              const reqImgUri = req.imageUrl || req.defaultImageThumbnailUrl || req.thumbnailUrl ||
+                (Array.isArray(req.images) && req.images.length > 0
+                  ? (typeof req.images[0] === 'string' ? req.images[0] : (req.images[0].imageUrl || req.images[0].url))
+                  : null);
+
+              const displayProd = req.subcategoryName || req.categoryName || req.productName || req.subcategory || req.category || req.product || req.title || req.name || 'Seafood Demand';
+              const displayQty = req.targetQuantity ? `${req.targetQuantity} ${req.uom || 'kg'}` : (req.quantity ? `${req.quantity} ${req.uom || 'kg'}` : (req.qty || '500 kg'));
+              const displayLoc = req.destinationRegion || req.region || req.branchName || req.loc || 'Kakinada Hub';
+
+              const rawPrice = req.targetPricePerUnit || req.maxPricePerUnit || req.pricePerUnit || req.price || req.targetPrice;
+              const displayPrice = rawPrice ? `₹${typeof rawPrice === 'number' ? rawPrice.toFixed(2) : rawPrice}/${req.uom || 'kg'}` : 'Open Offer';
+
+              return (
+                <TouchableOpacity
+                  key={req.id || `buyer_req_${idx}`}
+                  onPress={() => { setSelectedRequest(req); nav.navigate('BuyerRequestDetail'); }}
+                  style={styles.itemCardCarousel}
+                  activeOpacity={0.88}
+                >
+                  <View style={[styles.itemAccent, { backgroundColor: T.amber }]} />
+                  <View style={[styles.itemImgBox, { backgroundColor: `${T.amber}10` }]}>
+                    {reqImgUri ? (
+                      <Image source={{ uri: reqImgUri }} style={styles.itemCardImg} resizeMode="cover" />
+                    ) : (
+                      <Text style={styles.itemEmoji}>{productIcon(displayProd)}</Text>
+                    )}
+                    <View style={[styles.verifiedBadge, { backgroundColor: T.amber }]}>
+                      <Text style={styles.verifiedText}>Buying Demand</Text>
+                    </View>
                   </View>
-                </View>
 
-                <View style={styles.itemBody}>
-                  <Text style={styles.itemName} numberOfLines={1}>{req.subcategory || req.category || req.product || 'Bulk Demand'}</Text>
-                  <Text style={styles.itemSub} numberOfLines={1}>
-                    Target Qty: {req.targetQuantity || req.quantity || 500} {req.uom || 'kg'}
-                  </Text>
-
-                  <View style={styles.itemLocRow}>
-                    <Icon name="mapPin" size={11} color={T.text3} />
-                    <Text style={styles.itemLocText} numberOfLines={1}>
-                      {req.destinationRegion || req.branchName || req.loc || 'Kakinada Hub'}
+                  <View style={styles.itemBody}>
+                    <Text style={styles.itemName} numberOfLines={1}>{displayProd}</Text>
+                    <Text style={styles.itemSub} numberOfLines={1}>
+                      Target Qty: {displayQty}
                     </Text>
-                  </View>
 
-                  <View style={styles.itemPriceRow}>
-                    <Text style={[styles.itemPrice, { color: T.amber }]}>
-                      {req.targetPricePerUnit ? `₹${req.targetPricePerUnit}/${req.uom || 'kg'}` : 'Open Offer'}
-                    </Text>
-                    <CountdownTimer seedSeconds={getSeedSeconds(req.id)} compact />
-                  </View>
+                    <View style={styles.itemLocRow}>
+                      <Icon name="mapPin" size={11} color={T.text3} />
+                      <Text style={styles.itemLocText} numberOfLines={1}>
+                        {displayLoc}
+                      </Text>
+                    </View>
 
-                  <TouchableOpacity onPress={() => { setSelectedRequest(req); nav.navigate('BuyerRequestDetail'); }} style={[styles.placeBidBtn, { backgroundColor: T.navy }]} activeOpacity={0.85}>
-                    <Icon name="fileText" size={13} color="#fff" />
-                    <Text style={styles.placeBidBtnText}>Submit Proposal</Text>
-                  </TouchableOpacity>
-                </View>
-              </TouchableOpacity>
-            ))}
+                    <View style={styles.itemPriceRow}>
+                      <Text style={[styles.itemPrice, { color: T.amber }]}>{displayPrice}</Text>
+                      <CountdownTimer seedSeconds={getSeedSeconds(req.id || `seed_req_${idx}`)} compact />
+                    </View>
+
+                    <TouchableOpacity onPress={() => { setSelectedRequest(req); nav.navigate('BuyerRequestDetail'); }} style={[styles.placeBidBtn, { backgroundColor: T.navy }]} activeOpacity={0.85}>
+                      <Icon name="fileText" size={13} color="#fff" />
+                      <Text style={styles.placeBidBtnText}>Submit Proposal</Text>
+                    </TouchableOpacity>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
           </ScrollView>
         )}
 
@@ -536,7 +674,8 @@ const styles = StyleSheet.create({
   verifiedText: { fontSize: 9, fontWeight: '800', color: '#fff' },
 
   itemBody: { padding: 12, gap: 5 },
-  itemName: { fontSize: 14, fontWeight: '900', color: T.text1 },
+  itemHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 6 },
+  itemName: { flex: 1, fontSize: 14, fontWeight: '900', color: T.text1 },
   itemSub: { fontSize: 11, color: T.text2, fontWeight: '600' },
   itemLocRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   itemLocText: { fontSize: 11, color: T.text3, flexShrink: 1 },

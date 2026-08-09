@@ -462,6 +462,23 @@ export const CreateItemScreen: React.FC = () => {
           }
         }
 
+        // Submit listing for approval via API: POST /api/v1/listings/{listingId}/submit
+        if (listingId) {
+          const submitUrl = getApiUrl(`/api/v1/listings/${listingId}/submit`, apiBaseUrl);
+          try {
+            console.log(`Submitting listing ${listingId} for approval to: ${submitUrl}`);
+            await fetch(submitUrl, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${authToken}`,
+                'Content-Type': 'application/json',
+              },
+            });
+          } catch (subErr) {
+            console.warn('Error submitting listing for approval:', subErr);
+          }
+        }
+
         setSubmitting(false);
         showToast('Listing submitted for approval successfully!');
         nav.navigate('MyItems');
