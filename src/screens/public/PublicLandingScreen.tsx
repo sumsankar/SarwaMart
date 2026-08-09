@@ -344,7 +344,7 @@ const LoginBottomSheet: React.FC<{
 };
 
 export const PublicLandingScreen: React.FC<Props> = ({ navigation }) => {
-  const { apiBaseUrl, setToken, setRole, setLoggedIn } = useAppStore();
+  const { apiBaseUrl, setToken, setRole, setLoggedIn, setUser } = useAppStore();
   const [promptOpen, setPromptOpen] = useState(false);
   const [loginSheetOpen, setLoginSheetOpen] = useState(false);
   const [promptAction, setPromptAction] = useState<PromptAction>('bid');
@@ -510,6 +510,7 @@ export const PublicLandingScreen: React.FC<Props> = ({ navigation }) => {
             if (meRes.ok) {
               const meData = await meRes.json();
               console.log('GET /api/v1/auth/me success profile:', meData);
+              setUser(meData);
               const userRoleStr = (meData.role || meData.tradeRole || meData.userRole || meData.type || '').toLowerCase();
               if (userRoleStr.includes('buyer') || userRoleStr.includes('trader')) {
                 resolvedRole = 'buyer';

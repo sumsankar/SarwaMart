@@ -40,7 +40,7 @@ export const PINSetupScreen: React.FC<Props> = ({ navigation, route }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const { role, token: storeToken, apiBaseUrl, setLoggedIn } = useAppStore();
+  const { role, token: storeToken, apiBaseUrl, setLoggedIn, fetchUserProfile } = useAppStore();
   const tokenFromParams = route.params?.token;
   const mode = route.params?.mode || 'register';
 
@@ -80,6 +80,7 @@ export const PINSetupScreen: React.FC<Props> = ({ navigation, route }) => {
       if (response.ok || response.status === 200 || response.status === 204) {
         console.log('✅ 6-Digit PIN configured successfully via API');
         if (mode === 'login') {
+          fetchUserProfile(activeToken);
           setLoggedIn(true);
           navigation.replace(role === 'buyer' ? 'BuyerTabs' : 'SellerTabs');
         } else {

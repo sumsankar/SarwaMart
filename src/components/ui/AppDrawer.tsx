@@ -34,10 +34,16 @@ const BUYER_ITEMS = [
 
 export const AppDrawer: React.FC<Props> = ({ open, onClose }) => {
   const nav = useNavigation<Nav>();
-  const { role, logout } = useAppStore();
+  const { role, user, logout } = useAppStore();
   const isSeller = role === 'seller';
   const items = isSeller ? SELLER_ITEMS : BUYER_ITEMS;
-  const userName = isSeller ? 'Ravi Kumar' : 'Priya Nair';
+
+  const rawName = user?.fullName || user?.name || (user?.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : null);
+  const userName = rawName || (isSeller ? 'Ravi Kumar' : 'Priya Nair');
+
+  const userPhone = user?.phoneNumber || user?.phone || user?.mobile || '';
+  const userCompany = user?.companyName || user?.businessName || '';
+  const accountType = user?.accountType || user?.type || 'Individual';
 
   const { width: screenW } = useWindowDimensions();
   const panelW = screenW * 0.8;
@@ -67,14 +73,20 @@ export const AppDrawer: React.FC<Props> = ({ open, onClose }) => {
       <Animated.View style={[styles.panel, { width: panelW, transform: [{ translateX }] }]}>
         <View style={styles.header}>
           <Avatar name={userName} size={60} bg="rgba(255,255,255,0.2)" />
-          <Text style={styles.name}>{userName}</Text>
+          <Text style={styles.name} numberOfLines={1}>{userName}</Text>
+          {userCompany ? (
+            <Text style={styles.subDetail} numberOfLines={1}>🏢 {userCompany}</Text>
+          ) : null}
+          {userPhone ? (
+            <Text style={styles.subDetail} numberOfLines={1}>📱 {userPhone}</Text>
+          ) : null}
           <View style={styles.badges}>
             <View style={[styles.roleBadge, { backgroundColor: isSeller ? `${T.amber}30` : `${T.green}30` }]}>
               <Text style={[styles.roleBadgeText, { color: isSeller ? T.amber : T.green }]}>
                 {isSeller ? 'Seller' : 'Buyer'}
               </Text>
             </View>
-            <View style={styles.indBadge}><Text style={styles.indBadgeText}>Individual</Text></View>
+            <View style={styles.indBadge}><Text style={styles.indBadgeText}>{accountType}</Text></View>
           </View>
           <TouchableOpacity onPress={() => { onClose(); nav.navigate('Profile'); }}>
             <Text style={styles.viewProfile}>View profile →</Text>
@@ -118,6 +130,7 @@ const styles = StyleSheet.create({
   panel: { position: 'absolute', top: 0, left: 0, bottom: 0, backgroundColor: T.card, flexDirection: 'column', shadowColor: '#000', shadowOffset: { width: 2, height: 0 }, shadowOpacity: 0.25, shadowRadius: 12, elevation: 16 },
   header: { backgroundColor: T.navy, padding: 20, paddingTop: 56, gap: 6 },
   name: { fontSize: 18, fontWeight: '800', color: '#fff', marginTop: 10 },
+  subDetail: { fontSize: 12, color: 'rgba(255,255,255,0.75)', fontWeight: '600' },
   badges: { flexDirection: 'row', gap: 6 },
   roleBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
   roleBadgeText: { fontSize: 11, fontWeight: '700' },
