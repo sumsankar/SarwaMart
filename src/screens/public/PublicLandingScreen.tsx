@@ -11,6 +11,7 @@ import {
   Image,
   Platform,
   Dimensions,
+  RefreshControl,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -376,10 +377,14 @@ export const PublicLandingScreen: React.FC<Props> = ({ navigation }) => {
     requestsScrollRef.current?.scrollTo({ x: newX, animated: true });
   };
 
+  const [refreshing, setRefreshing] = useState(false);
+
   const fetchListings = async (silent = false) => {
     if (!silent) setLoadingItems(true);
     try {
-      const res = await fetch('https://sarwamart-api-g3bhexcsggetc4eu.canadacentral-01.azurewebsites.net/api/v1/listings/public?pageSize=15');
+      const url = getApiUrl('/api/v1/listings/public?pageSize=15', apiBaseUrl);
+      console.log('Fetching public listings from:', url);
+      const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
         setItems(data.items || []);
@@ -394,7 +399,9 @@ export const PublicLandingScreen: React.FC<Props> = ({ navigation }) => {
   const fetchRequests = async (silent = false) => {
     if (!silent) setLoadingRequests(true);
     try {
-      const res = await fetch('https://sarwamart-api-g3bhexcsggetc4eu.canadacentral-01.azurewebsites.net/api/v1/requests/public?pageSize=15');
+      const url = getApiUrl('/api/v1/requests/public?pageSize=15', apiBaseUrl);
+      console.log('Fetching public requests from:', url);
+      const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
         setRequests(data.items || []);
@@ -408,7 +415,9 @@ export const PublicLandingScreen: React.FC<Props> = ({ navigation }) => {
 
   const fetchCategories = async () => {
     try {
-      const res = await fetch('https://sarwamart-api-g3bhexcsggetc4eu.canadacentral-01.azurewebsites.net/api/v1/categories');
+      const url = getApiUrl('/api/v1/categories', apiBaseUrl);
+      console.log('Fetching categories from:', url);
+      const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
         setCategories(data || []);
@@ -418,11 +427,21 @@ export const PublicLandingScreen: React.FC<Props> = ({ navigation }) => {
     }
   };
 
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await Promise.all([
+      fetchListings(true),
+      fetchRequests(true),
+      fetchCategories(),
+    ]);
+    setRefreshing(false);
+  };
+
   useEffect(() => {
     fetchListings();
     fetchRequests();
     fetchCategories();
-  }, []);
+  }, [apiBaseUrl]);
 
   const showPrompt = (action: PromptAction) => {
     setPromptAction(action);
@@ -567,6 +586,9 @@ export const PublicLandingScreen: React.FC<Props> = ({ navigation }) => {
       <View style={styles.header}>
         <Logo width={135} dark />
         <View style={styles.headerRightGroup}>
+          <TouchableOpacity onPress={onRefresh} style={styles.reloadBtn} activeOpacity={0.8} hitSlop={6}>
+            <Icon name="refresh" size={16} color={T.navy} />
+          </TouchableOpacity>
           <TouchableOpacity onPress={handleLoginClick} style={styles.loginChip} activeOpacity={0.8}>
             <Text style={styles.loginChipText}>Login</Text>
           </TouchableOpacity>
@@ -576,7 +598,18 @@ export const PublicLandingScreen: React.FC<Props> = ({ navigation }) => {
         </View>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={T.navy}
+            colors={[T.navy]}
+          />
+        }
+      >
         {/* Deep Navy Top Shell for Ticker + Banner */}
         <LinearGradient colors={['#0F172A', '#1E293B', '#334155']} style={styles.topNavyShell}>
           {/* Ticker Bar inside dark shell */}
@@ -952,7 +985,8 @@ const styles = StyleSheet.create({
 
   topNavyShell: { paddingBottom: 20, borderBottomLeftRadius: 24, borderBottomRightRadius: 24, paddingTop: 10 },
   header: { height: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: T.hairline },
-  headerRightGroup: { flexDirection: 'row', gap: 8 },
+  headerRightGroup: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  reloadBtn: { width: 34, height: 34, borderRadius: 10, backgroundColor: `${T.navy}10`, borderWidth: 1, borderColor: `${T.navy}20`, alignItems: 'center', justifyContent: 'center' },
   loginChip: { height: 34, paddingHorizontal: 14, borderRadius: 10, borderWidth: 1.5, borderColor: T.navy, alignItems: 'center', justifyContent: 'center' },
   loginChipText: { color: T.navy, fontSize: 12, fontWeight: '800' },
   registerChip: { height: 34, paddingHorizontal: 14, borderRadius: 10, backgroundColor: T.amber, alignItems: 'center', justifyContent: 'center' },
