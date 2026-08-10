@@ -5284,6 +5284,29 @@
                 }
             }
         },
+        "/api/v1/listings/{id}/negotiation": {
+            "get": {
+                "tags": [
+                    "Listings"
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
         "/api/v1/listings/{id}/submit": {
             "post": {
                 "tags": [

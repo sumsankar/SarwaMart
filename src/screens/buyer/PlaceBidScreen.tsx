@@ -24,6 +24,8 @@ export const PlaceBidScreen: React.FC = () => {
   const diff = numPrice - startingPrice;
   const qty = qtyType === 'full' ? (item?.qty?.replace(' kg', '') || '500') : partialQty;
   const total = numPrice && qty ? (numPrice * parseFloat(qty)).toLocaleString('en-IN') : null;
+  const allowPartialBids = !!item?.allowPartialBids;
+  const minBidQuantity = item?.minBidQuantity;
 
   const handleSubmit = () => {
     setToastVisible(true);
@@ -53,7 +55,7 @@ export const PlaceBidScreen: React.FC = () => {
             <View style={styles.segRow}>
               {[
                 { key: 'full', label: `Full Qty (${item?.qty || '500 kg'})` },
-                { key: 'partial', label: 'Partial Qty' },
+                ...(allowPartialBids ? [{ key: 'partial', label: 'Partial Qty' }] : []),
               ].map(opt => (
                 <TouchableOpacity
                   key={opt.key}
@@ -64,7 +66,7 @@ export const PlaceBidScreen: React.FC = () => {
                 </TouchableOpacity>
               ))}
             </View>
-            {qtyType === 'partial' && (
+            {allowPartialBids && qtyType === 'partial' && (
               <View style={styles.inputWrap}>
                 <Text style={styles.inputLabel}>How much do you want? *</Text>
                 <View style={styles.inputBox}>
@@ -77,7 +79,9 @@ export const PlaceBidScreen: React.FC = () => {
                     style={styles.input}
                   />
                 </View>
-                <Text style={styles.helper}>Min order: 50 kg</Text>
+                {minBidQuantity != null && (
+                  <Text style={styles.helper}>Min order: {minBidQuantity} kg</Text>
+                )}
               </View>
             )}
           </View>

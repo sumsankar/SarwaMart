@@ -7,6 +7,7 @@ import { RootStackParams } from '../../navigation/RootNavigator';
 import { AppBar } from '../../components/ui/AppBar';
 import { Icon } from '../../components/ui/Icon';
 import { BannerCarousel } from '../../components/ui/BannerCarousel';
+import { CategoryFilterBar } from '../../components/ui/CategoryFilterBar';
 import { SectionHeader } from '../../components/ui/SectionHeader';
 import { StatusPill } from '../../components/ui/StatusPill';
 import { CountdownTimer } from '../../components/ui/CountdownTimer';
@@ -268,6 +269,13 @@ export const BuyerHomeScreen: React.FC = () => {
             )}
           </TouchableOpacity>
         </View>
+
+        {/* Top Category Filter Bar */}
+        <CategoryFilterBar
+          selectedCategory={filters.category}
+          onSelectCategory={(c) => setFilters(f => ({ ...f, category: c }))}
+          title=""
+        />
       </View>
 
       <ScrollView
@@ -366,8 +374,15 @@ export const BuyerHomeScreen: React.FC = () => {
                     {/* Title */}
                     <Text style={styles.itemName} numberOfLines={1}>{nameStr}</Text>
 
-                    {/* Species & Quantity Subtitle */}
-                    <Text style={styles.itemSub} numberOfLines={1}>{subStr} · {qtyStr}</Text>
+                    {/* Species & Quantity Subtitle, with Min Bid Quantity to the right */}
+                    <View style={styles.itemSubRow}>
+                      <Text style={styles.itemSub} numberOfLines={1}>{subStr} · {qtyStr}</Text>
+                      {item.allowPartialBids && item.minBidQuantity != null && (
+                        <View style={styles.partialFillTag}>
+                          <Text style={styles.partialFillTagText} numberOfLines={1}>Partial Fill (Min {item.minBidQuantity} {cleanUom})</Text>
+                        </View>
+                      )}
+                    </View>
 
                     {/* Operating Region / Location */}
                     <View style={styles.itemLocRow}>
@@ -411,7 +426,7 @@ export const BuyerHomeScreen: React.FC = () => {
 
                     {/* CTA Button */}
                     <TouchableOpacity
-                      onPress={() => { setSelectedItem(item); nav.navigate('PlaceBid'); }}
+                      onPress={() => { setSelectedItem(item); nav.navigate('ItemDetailBuyer'); }}
                       style={[styles.placeBidBtn, isDirectSale && styles.buyNowBtn]}
                       activeOpacity={0.85}
                     >
@@ -574,7 +589,10 @@ const styles = StyleSheet.create({
   itemBidsBadgeText: { fontSize: 10, fontWeight: '800', color: '#fff' },
   itemBody: { padding: 12, gap: 6 },
   itemName: { fontSize: 15, fontWeight: '800', color: T.text1 },
-  itemSub: { fontSize: 11, color: T.text2, fontWeight: '600' },
+  itemSubRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 6 },
+  itemSub: { fontSize: 11, color: T.text2, fontWeight: '600', flexShrink: 1 },
+  partialFillTag: { backgroundColor: `${T.amber}15`, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6, borderWidth: 1, borderColor: `${T.amber}35`, flexShrink: 0 },
+  partialFillTagText: { fontSize: 10, fontWeight: '700', color: T.amber },
   itemLocRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   itemLocText: { fontSize: 11, color: T.text3, flexShrink: 1 },
 
